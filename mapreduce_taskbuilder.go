@@ -10,10 +10,11 @@ type MapreduceTaskBuilder struct {
 func (tb MapreduceTaskBuilder) GetTask(taskID uint64) taskgraph.Task {
 	if taskID == 0 {
 		return &masterTask{
-			numOfTasks: tb.NumOfTasks,
 			config:     MapreduceConfig,
 		}
 	} else {
-		return &workerTask{}
+		return &workerTask{
+			config : MapreduceConfig
+		}
 	}
 }

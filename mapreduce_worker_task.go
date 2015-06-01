@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"exec"
 
 	pb "./proto"
 	"github.com/golang/protobuf/proto"
@@ -28,7 +29,10 @@ type workerTask struct {
 	taskID    uint64
 	workID    uint64
 	etcdClient *etcd.Client
-
+	appname string
+	userSeverPort uint64
+	mapperWriteCloser []bufio.Writer
+	reducerWriteCloser  bufio.Writer
 	//channels
 	epochChange  chan *mapreduceEvent
 	dataReady    chan *mapreduceEvent
@@ -77,9 +81,29 @@ func (mp *mapreduceTask) run() {
 			return
 
 		case dataReady := <-dataReady:
-			go mp.processWork(dataReady.ctx, dataReady.fromID, dataReady.workID, dataReady.method, dataReady.output)
+			go mp.processWork(dataReady.ctx, dataReady.fromID, t.workID, dataReady.method, dataReady.output)
 		}
 	}
+}
+
+func (t *workerTask) startNewUserServer(cmd string) {
+	// need implement
+}
+
+func (t *workerTask) getNewMapperUserServer(address string) {
+	conn, err := grpc.Dial(address + fmt.Sprintf(":%d", t.userSeverPort))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	c = pb.NewMapperClient(conn)
+}
+
+func (t *workerTask) getNewReducerUserServer(address string) {
+	conn, err := grpc.Dial(address + fmt.Sprintf(":%d", t.userSeverPort))
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	c = pb.NewReducerClient(conn)
 }
 
 func (t *workerTask) processWork(ctx context.Context, fromID uint64, workID uint64, method string, message proto.Message) {
@@ -106,17 +130,17 @@ func (t *workerTask) processWork(ctx context.Context, fromID uint64, workID uint
 	// start relative processing procedure
 	switch pair["WorkType"] {
 		case "Mapper" :
-			userClient := getNewMapperUserServer(workConfig.UserServerAddress)
+			userClient := t.getNewMapperUserServer(workConfig.UserServerAddress)
 			go t.mapperProcedure(ctx, workID, workConfig, userClient)
 		case "Reducer" :
-			userClient := getNewRducerUserServer(workConfig.UserServerAddress)
+			userClient := t.getNewReducerUserServer(workConfig.UserServerAddress)
 			go t.reducerProcedure(ctx, workID, workConfig, userClient)
 
 	}
 }
 
 func (t *workerTask) initializeTaskEnv() error {
-	_, err := t.etcdClient.Create((name, taskID), "non", 10)
+	_, err := t.etcdClient.Create(MapreduceNodeStatusPath(t.appname, t.taskID, "workStatus"), "non", 0)
 	if err != nil {
 		if strings.Contains(err.Error(), "Key already exists") {
 			return nil
@@ -140,7 +164,7 @@ func (t *workerTask) grabWork(ctx context.Context, method string, stop chan bool
 	// afterwards, watch etcd worker attribute "workStatus"
 	// if exist operation 
 	receiver := make(chan *etcd.Response, 1)
-	go client.Watch(HealthyPath(name), 0, true, receiver, stop)
+	go client.Watch(MapreduceNodeStatusPath(t.appname, t.taskID, "workStatus"), 0, true, receiver, stop)
 	for resp := range receiver {
 		if resp.Action != "set"{
 			continue
@@ -275,7 +299,7 @@ func (t *workerTask) collectKvPairs(userClient pb.ReducerClient, key string, val
 				log.Fatalf("%v.ListFeatures(_) = _, %v", c, err)
 				return
 			}
-			fmt.Println(feature)
+			t.Collect(feature.Key, feature.Value)
 		}
 	}
 }
@@ -330,6 +354,8 @@ func (mp *workerTask) EnterEpoch(ctx context.Context, epoch uint64) {
 
 
 func (t *workerTask) doEnterEpoch(ctx context.Context, epoch uint64) {
+	// stop the last epoch grab work procedure
+	// start a new one
 	close(t.stopGrabTaskForEveryEpoch)
 	t.stopGrabTaskForEveryEpoch = make(chan bool, 1)
 	grabWork(ctx, "/proto.Master/GetWork", t.stopGrabTaskForEveryEpoch)
@@ -352,9 +378,9 @@ func (t *workerTask) CreateOutputMessage(method string) proto.Message {
 }
 
 func (t *workerTask) DataReady(ctx context.Context, fromID uint64, method string, output proto.Message) {
-	t.dataReady <- &event{ctx: ctx, fromID: fromID, method: method, workID : t.workID,  output: output}
+	t.dataReady <- &event{ctx: ctx, fromID: fromID, method: method, output: output}
 }
 
 func (t *workerTask) MetaReady(ctx context.Context, fromID uint64, LinkType, meta string) {
-	t.metaReady <- &mapreduceEvent{ctx: ctx, fromID: fromID, workID : t.workID, linkType: LinkType, meta: meta}
+	t.metaReady <- &mapreduceEvent{ctx: ctx, fromID: fromID, linkType: LinkType, meta: meta}
 }
