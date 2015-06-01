@@ -1,6 +1,9 @@
 package mapreduce
 
-import "github.com/plutoshe/taskgraph/filesystem"
+import (
+	"github.com/plutoshe/taskgraph/filesystem"
+	"golang.org/x/net/context"
+)
 
 // This structure implements a setup of mapreduce,
 // decribes the work mechanism, the app name,
@@ -24,9 +27,23 @@ type MapreduceConfig struct {
 // This structure decribes concrete setting of a work,
 // including cmdline for user program,
 // workType, and input/output file path.
+
+// TO-DO :
+// user code shoule implement as single structure
+
 type WorkConfig struct {
 	InputFilePath  string
 	OutputFilePath string
 	UserProgram    string
 	WorkType       string
+}
+
+type mapreduceEvent {
+	ctx context.Context
+	fromID uint64
+	workID uint64
+	linkType string
+	method string
+	meta string
+	output proto.Message
 }

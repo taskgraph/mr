@@ -9,6 +9,7 @@ import (
 	"github.com/taskgraph//taskgraph"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"github.com/coreos/go-etcd/etcd"
 )
 
 const nonExistWork = math.MaxUint64
@@ -20,8 +21,9 @@ type masterTask struct {
 	logger     *log.Logger
 	taskID     uint64
 	numOfTasks uint64
-
-	config mapredeuceConfig
+	etcdClient *etcd.Client
+	currentWorkNum uint64
+	totalWork uint64
 
 	//channels
 	epochChange  chan *mapreduceEvent
@@ -31,17 +33,9 @@ type masterTask struct {
 	finishedChan chan *mapreduceEvent
 	notifyChanArr   []chan *WorkConfig
 	exitChan     chan struct{}
+	workDone 	chan bool
 
-	mapreduceConfig MapreduceConfig
-}
-
-type mapreduceEvent {
-	ctx context.Context
-	fromID uint64
-	linkType string
-	method string
-	meta string
-	output proto.Message
+	config MapreduceConfig
 }
 
 func (t *masterTask) Init(taskID uint64, framework taskgraph.Framework) {
@@ -54,6 +48,7 @@ func (t *masterTask) Init(taskID uint64, framework taskgraph.Framework) {
 	t.dataReady = make(chan *event, t.numOfTasks)
 	t.metaReady = make(chan *event, t.numOfTasks)
 	t.notifyChanArr = make([]chan *event, t.numOfTasks)
+	t.workDone = make(bool, 1)
 	for i := range t.notifyChanArr {
 		t.notifyChanArr[i] = make(bool, 1)
 
@@ -87,10 +82,10 @@ func (t *masterTask) GetWork(in *WorkRequest) (*WorkConfigResponse, error) {
 			case workConfig := <-t.notifyChanArr[in.TaskID]:
 				key := []string{"InputFilePath", "OutputFilePath", "UserProgram", "WorkType"}
 				val := []string{
-					workConfig.InputFilePath
-					workConfig.OutputFilePath
-					workConfig.UserProgram
-					workConfig.WorkType
+					workConfig.InputFilePath,
+					workConfig.OutputFilePath,
+					workConfig.UserProgram,
+					workConfig.WorkType,
 				}
 				return &pb.WorkConfigResponse{Key : key, Value : val}, nil 
 			case <-t.workDone :
@@ -101,42 +96,59 @@ func (t *masterTask) GetWork(in *WorkRequest) (*WorkConfigResponse, error) {
 }
 
 func (t *masterTask) assignWork(taskID int) {
-	temCir := true
-	for (temCir) {
-		t.workNum = // get workNum through etcd
-		t.currentWork = // get current Work through etcd
-
-		if (CompareAndSwap() ok ) {
-			t.notifyChanArr[taskID] <- //work struture
+	
+	for {
+		requestWorkStatus, err := t.etcdClient.Get(MapreduceNodeStatusPath(appname, taskID, "workStatus"), false, false)
+		if requestWorkStatus != -1 {
+			t.notifyChanArr[taksID] <- t.config.WorkDir[requestWorkStatus]
+			return
+		}
+		t.currentWorkNum, err := t.etcdClient.Get(MapreduceNodeStatusPath(appname, 0, "currentWorkNum"), false, false)
+		if err != nil {
+			log.Fatal("etcdutil: can not get epoch from etcd")
+		}
+		t.totalWork, err := t.etcdClient.Get(MapreduceNodeStatusPath(appname, 0, "workNum"), false, false)
+		if err != nil {
+			log.Fatal("etcdutil: can not get epoch from etcd")
+		}
+		if (t.currentWorkNum + 1 >= t.totalWork) {
+			close(t.workDone)
+			return
+		}
+		// get workNum through etcd
+		// t.currentWorkConfig = // get current Work through etcd
+		grabWork, err := t.etcdClient.CompareAndSwap(
+			MapreduceNodeStatusPath(appname, 0, "currentWorkNum"), 
+			t.currentWorkNum + 1,
+			0, 
+			t.currentWorkNum, 
+			0
+		)
+		if err != nil {		
+			log.Fatal("etcdutil: can not get epoch from etcd")
+		}
+		if (grabWork) {
+			t.notifyChanArr[taskID] <- t.config.WorkDir[t.currentWorkNum+1]//work struture
 			temCir = false
 		}
 	}
 }
 
-
-func (mp *mapreduceTask) processMessage(ctx context.Context, fromID uint64, linkType string, meta string) {
-	switch mp.taskType {
+func (t *masterTask) processMessage(ctx context.Context, fromID uint64, workID uint64, linkType string, meta string) {
+	switch t.taskType {
 	case "master":
-		matchMapper, _ := regexp.MatchString("^MapperWorkFinished[0-9]+$", meta)
-		matchReducer, _ := regexp.MatchString("^ReducerWorkFinished[0-9]+$", meta)
+		matchWork, _ := regexp.MatchString("^WorkFinished[0-9]+$", meta)
 		switch {
-		case matchMapper:
-			mp.mapperNumCount++
-			mp.logger.Printf("==== finished %d works, total %d works, receive meta %s====", mp.mapperNumCount, mp.mapperWorkNum, meta)
-			if mp.mapperWorkNum <= mp.mapperNumCount {
-				mp.framework.IncEpoch(ctx)
+		case matchWork:
+			t.finishedWorkNum++
+			t.notifyWorker <- mapreduceEvent{ctx: ctx, fromID: mp.taskID, linkType: "Neighbors", meta: "WorkFinished" + strconv.FormatUint(mp.workID, 10)}
+			if t.finishedWorkNum >= t.totalWork {
+				t.Exit()
+				return
 			}
-		case matchReducer:
-			mp.reducerNumCount++
-			mp.logger.Printf("==== finished %d works, total %d works, receive meta %s====", mp.reducerNumCount, mp.mapreduceConfig.ReducerNum, meta)
-			if mp.mapreduceConfig.ReducerNum <= mp.reducerNumCount {
-				mp.framework.ShutdownJob()
-			}
-		}
 
 	}
 }
-
 
 
 func (*masterTask) Exit() {

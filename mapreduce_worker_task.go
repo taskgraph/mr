@@ -34,46 +34,27 @@ type workerTask struct {
 	finishedChan chan *mapreduceEvent
 	notifyChan   chan *mapreduceEvent
 	exitChan     chan struct{}
-	stopGrabTask chan bool
+	stopGrabTaskForEveryEpoch chan bool
 
 	//io writer
 	shuffleDepositWriter bufio.Writer
 
-	mapreduceConfig MapreduceConfig
+	config MapreduceConfig
 }
 
-type shuffleEmit struct {
-	Key   string   `json:"key"`
-	Value []string `json:"value"`
-}
-
-type mapperEmitKV struct {
-	Key   string `json:"key"`
-	Value string `json:"value"`
-}
-
-type mapreduceEvent struct {
-	ctx      context.Context
-	epoch    uint64
-	fromID   uint64
-	workID   uint64
-	linkType string
-	meta     string
-}
-
-func (mp *workerTask) Init(taskID uint64, framework taskgraph.Framework) {
-	mp.logger = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
-	mp.taskID = taskID
-	mp.framework = framework
-	mp.finishedTask = make(map[uint64]bool)
+func (t *workerTask) Init(taskID uint64, framework taskgraph.Framework) {
+	t.logger = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
+	t.taskID = taskID
+	t.framework = framework
+	t.finishedTask = make(map[uint64]bool)
 	//channel init
-	mp.stopGrabTask = make(chan bool, 1)
-	mp.epochChange = make(chan *mapreduceEvent, 1)
-	mp.dataReady = make(chan *mapreduceEvent, 1)
-	mp.metaReady = make(chan *mapreduceEvent, 1)
-	mp.exitChan = make(chan struct{})
-
-	go mp.run()
+	t.stopGrabTask = make(chan bool, 1)
+	t.epochChange = make(chan *mapreduceEvent, 1)
+	t.dataReady = make(chan *mapreduceEvent, 1)
+	t.metaReady = make(chan *mapreduceEvent, 1)
+	t.exitChan = make(chan struct{})
+	t.initializeTaskEnv()
+	go t.run()
 }
 
 func (mp *mapreduceTask) run() {
@@ -94,41 +75,102 @@ func (mp *mapreduceTask) run() {
 	}
 }
 
-// By type of task, decide eclusive progress to run
-func (mp *mapreduceTask) initializeTaskEnv(ctx context.Context) {
-}
-
-func (mp *mapreduceTask) processWork(ctx context.Context, workChan chan *mapreduceEvent) {
-
-}
-
-// Read given file, process it through mapper function by user setting
-func (mp *mapreduceTask) fileRead(ctx context.Context, work map[string]string) {
-	file := work.Config["inputFile"]
-	mp.logger.Printf("FileReader, Mapper task %d, process %s, %s", mp.taskID, file, mp.mapreduceConfig.InterDir)
-	var i uint64
-	mp.mapperWriteCloser = make([]bufio.Writer, 0)
-	for i = 0; i < mp.mapreduceConfig.ReducerNum; i++ {
-		path := mp.mapreduceConfig.InterDir + "/" + strconv.FormatUint(i, 10) + "from" + strconv.FormatUint(mp.workID, 10)
-		mp.logger.Println("Output Path ", path)
-		mp.Clean(path)
-		tmpWrite, err := mp.mapreduceConfig.FilesystemClient.OpenWriteCloser(path)
-		if err != nil {
-			mp.logger.Fatalf("MapReduce : get azure storage client writer failed, ", err)
-		}
-		mp.mapperWriteCloser = append(mp.mapperWriteCloser, *bufio.NewWriterSize(tmpWrite, mp.mapreduceConfig.WriterBufferSize))
+func (t *workerTask) processWork(ctx context.Context, fromID uint64, method string, message proto.Message) {
+	resp, ok := output.(*pb.Response)
+	if !ok {
+		t.logger.Panicf("doDataRead, corruption in proto.Message.")
+	}
+	pair := make(map[string]string)
+	for i := range resp.Key {
+		pair[resp.Key[i]] = resp.Value[i]
+	}
+	workConfig := WorkConfig{
+		InputFilePath  : pair["InputFilePath"],
+		OutputFilePath : pair["OutputFilePath"],
+		UserProgram  : pair["UserProgram"],
+		WorkType : pair["WorkType"],
 	}
 
-	mapperReaderCloser, err := mp.mapreduceConfig.FilesystemClient.OpenReadCloser(file)
+
+
+	switch pair["WorkType"] {
+		case "Mapper" :
+			go t.mapperProcedure(ctx, workConfig)
+		case "Reducer" :
+			go t.reducerProcedure(ctx, workConfig)
+
+	}
+}
+
+func (t *workerTask) initializeTaskEnv() error {
+	_, err := t.etcdClient.Create((name, taskID), "non", 10)
+	if err != nil {
+		if strings.Contains(err.Error(), "Key already exists") {
+			return nil
+		}
+		return err
+	}
+}
+
+func (t *workerTask) grabTask(stop *chan bool) {
+	// To begin with, check the initial work state of this task
+	// if no work exist, grab new one
+
+
+	// afterwards, watch etcd worker attribute "workStatus"
+	// if exist operation 
+
+
+}
+
+func (t *workerTask) emitKvPairs(userClient pb.MapperClient, str string, value string, stop) {
+	stream, err := c.GetEmitResult(context.Background(), &pb.MapperRequest{Key: str, Value: v})
+	if err != nil {
+		log.Fatalf("could not greet: %v", err)
+	}
+	if !stop {
+		fmt.Println("in Emit steps")
+		for {
+			feature, err := stream.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatalf("%v.ListFeatures(_) = _, %v", c, err)
+				return
+			}
+			fmt.Println(feature)
+		}
+	}
+}
+
+
+
+func (t *workerTask) mapperProcedure(ctx context.Context, workID uint64, workConfig WorkConfig, userClient pb.MapperClient) {
+	var i uint64
+	t.mapperWriteCloser = make([]bufio.Writer, 0)
+
+	for i = 0; i < mp.config.ReducerNum; i++ {
+		path := workConfig.OutputFilePath + "/" + strconv.FormatUint(i, 10) + "from" + strconv.FormatUint(workID, 10)
+		t.logger.Println("Output Path ", path)
+		t.Clean(path)
+		tmpWrite, err := t.config.FilesystemClient.OpenWriteCloser(path)
+		if err != nil {
+			t.logger.Fatalf("MapReduce : get azure storage client writer failed, ", err)
+		}
+		t.WriteCloser = append(mp.mapperWriteCloser, *bufio.NewWriterSize(tmpWrite, mp.mapreduceConfig.WriterBufferSize))
+	}
+
+
+	// Input file loading
+	mapperReaderCloser, err := t.FilesystemClient.OpenReadCloser(workConfig.InputFilePath)
 	if err != nil {
 		mp.logger.Fatalf("MapReduce : get azure storage client reader failed, ", err)
 	}
-	// if mp.workID == 3 {
-	// 	mp.logger.Fatalf("failed by intention")
-	// }
-	err = nil
 	var str string
-	bufioReader := bufio.NewReaderSize(mapperReaderCloser, mp.mapreduceConfig.ReaderBufferSize)
+
+	bufioReader := bufio.NewReaderSize(mapperReaderCloser, mp.config.ReaderBufferSize)
+
 	for err != io.EOF {
 		str, err = bufioReader.ReadString('\n')
 
@@ -138,17 +180,19 @@ func (mp *mapreduceTask) fileRead(ctx context.Context, work map[string]string) {
 		if err != io.EOF {
 			str = str[:len(str)-1]
 		}
-		mp.mapreduceConfig.MapperFunc(mp, str)
+		t.emitKvPairs(userClient, str, "", false)
 	}
+	// stop the reader and user program grpc client
 	mapperReaderCloser.Close()
+	t.emitKvPairs(userClient, "stop", "stop", true)
+
+	//flush output result
 	for i = 0; i < mp.mapreduceConfig.ReducerNum; i++ {
-		mp.mapperWriteCloser[i].Flush()
+		t.mapperWriteCloser[i].Flush()
 	}
-	mp.logger.Println("FileRead finished")
+	t.logger.Println("FileRead finished")
 	// notify the master mapper work has been done
-	mp.notifyChan <- &mapreduceEvent{ctx: ctx, workID: mp.workID, fromID: mp.taskID, linkType: "Slave", meta: "MapperWorkFinished" + strconv.FormatUint(mp.workID, 10)}
-	// release the task to grab a new work
-	mp.etcdClient.Delete(etcdutil.TaskMasterWork(mp.mapreduceConfig.AppName, strconv.FormatUint(mp.taskID, 10)), false)
+	t.notifyChan <- &mapreduceEvent{ctx: ctx, workID: mp.workID, fromID: mp.taskID, linkType: "Master", meta: "WorkFinished" + strconv.FormatUint(mp.workID, 10)}
 }
 
 // Read mapper data, shuffle, set a new reducer work
