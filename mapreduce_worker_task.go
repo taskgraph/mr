@@ -61,18 +61,7 @@ type mapreduceEvent struct {
 	meta     string
 }
 
-func (mp *mapreduceTask) Clean(path string) {
-	err := mp.mapreduceConfig.FilesystemClient.Remove(path)
-	if err != nil {
-		mp.logger.Fatal(err)
-	}
-}
-
-func (mp *mapreduceTask) Collect(key string, val string) {
-	mp.outputWriter.Write([]byte(key + " " + val + "\n"))
-}
-
-func (mp *mapreduceTask) Init(taskID uint64, framework taskgraph.Framework) {
+func (mp *workerTask) Init(taskID uint64, framework taskgraph.Framework) {
 	mp.logger = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
 	mp.taskID = taskID
 	mp.framework = framework
@@ -83,6 +72,7 @@ func (mp *mapreduceTask) Init(taskID uint64, framework taskgraph.Framework) {
 	mp.dataReady = make(chan *mapreduceEvent, 1)
 	mp.metaReady = make(chan *mapreduceEvent, 1)
 	mp.exitChan = make(chan struct{})
+
 	go mp.run()
 }
 
@@ -113,7 +103,7 @@ func (mp *mapreduceTask) processWork(ctx context.Context, workChan chan *mapredu
 }
 
 // Read given file, process it through mapper function by user setting
-func (mp *mapreduceTask) fileRead(ctx context.Context, work taskgraph.Work) {
+func (mp *mapreduceTask) fileRead(ctx context.Context, work map[string]string) {
 	file := work.Config["inputFile"]
 	mp.logger.Printf("FileReader, Mapper task %d, process %s, %s", mp.taskID, file, mp.mapreduceConfig.InterDir)
 	var i uint64
@@ -280,26 +270,13 @@ func (mp *mapreduceTask) reducerProcess(ctx context.Context) {
 
 }
 
-func (mp *mapreduceTask) processReducerKV(str []byte) {
-	var tp shuffleEmit
-	if err := json.Unmarshal([]byte(str), &tp); err == nil {
-		mp.mapreduceConfig.ReducerFunc(mp, tp.Key, tp.Value)
-	}
-}
-
-func (mp *mapreduceTask) processShuffleKV(str []byte) {
-	var tp mapperEmitKV
-	if err := json.Unmarshal([]byte(str), &tp); err == nil {
-		mp.shuffleContainer[tp.Key] = append(mp.shuffleContainer[tp.Key], tp.Value)
-	}
-}
-
 func (mp *workerTask) EnterEpoch(ctx context.Context, epoch uint64) {
 	mp.epochChange <- &mapreduceEvent{ctx: ctx, epoch: epoch}
 }
 
 func (mp *workerTask) grabWork(ctx context.Context, method string) {
 	master := t.framework.GetTopology()["Master"].GetNeighbors(mp.epoch)
+
 	for _, node := range master {
 		t.framework.DataRequest(ctx, node, method, &pb.Request{taskID: mp.taskID})
 	}

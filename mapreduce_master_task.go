@@ -29,7 +29,7 @@ type masterTask struct {
 	metaReady    chan *mapreduceEvent
 	getWork		chan int
 	finishedChan chan *mapreduceEvent
-	notifyChanArr   []chan bool
+	notifyChanArr   []chan *WorkConfig
 	exitChan     chan struct{}
 
 	mapreduceConfig MapreduceConfig
@@ -77,12 +77,40 @@ func (t *masterTask) run() {
 	}
 }
 
+
+// grpc interface providing worker invoke to grab new work
+// implements as a serialize program by channel.
 func (t *masterTask) GetWork(in *WorkRequest) (*WorkConfigResponse, error) {
-	t.getWork<-in.taskID
+	t.getWork<-in.TaskID
+	for {
+		select {	
+			case workConfig := <-t.notifyChanArr[in.TaskID]:
+				key := []string{"InputFilePath", "OutputFilePath", "UserProgram", "WorkType"}
+				val := []string{
+					workConfig.InputFilePath
+					workConfig.OutputFilePath
+					workConfig.UserProgram
+					workConfig.WorkType
+				}
+				return &pb.WorkConfigResponse{Key : key, Value : val}, nil 
+			case <-t.workDone :
+				return nil, nil
+		}		
+	}
+	return nil, nil
 }
 
-func (t *masterTask) assignWork() {
+func (t *masterTask) assignWork(taskID int) {
+	temCir := true
+	for (temCir) {
+		t.workNum = // get workNum through etcd
+		t.currentWork = // get current Work through etcd
 
+		if (CompareAndSwap() ok ) {
+			t.notifyChanArr[taskID] <- //work struture
+			temCir = false
+		}
+	}
 }
 
 
