@@ -36,6 +36,7 @@ type WorkConfig struct {
 	OutputFilePath string
 	UserProgram    string
 	WorkType       string
+	UserServerAddress string
 }
 
 type mapreduceEvent {
