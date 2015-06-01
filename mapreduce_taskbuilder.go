@@ -4,17 +4,17 @@ import "github.com/taskgraph/taskgraph"
 
 type MapreduceTaskBuilder struct {
 	NumOfTasks      uint64
-	MapreduceConfig map[string]interface{}
+	MapreduceConfig MapreduceConfig
 }
 
 func (tb MapreduceTaskBuilder) GetTask(taskID uint64) taskgraph.Task {
 	if taskID == 0 {
 		return &masterTask{
-			config:     MapreduceConfig,
+			config: tb.MapreduceConfig,
 		}
 	} else {
 		return &workerTask{
-			config : MapreduceConfig
+			config: tb.MapreduceConfig,
 		}
 	}
 }

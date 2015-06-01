@@ -11,6 +11,9 @@ import (
 
 type MapreduceConfig struct {
 	//defined the work num
+	MapperNum uint64
+	ShuffleNum uint64
+	ReducerNum uint64
 	WorkNum uint64
 
 	//store the work, appname, and etcdurls
@@ -32,9 +35,9 @@ type MapreduceConfig struct {
 // user code shoule implement as single structure
 
 type WorkConfig struct {
-	InputFilePath  string
-	OutputFilePath string
-	UserProgram    string
+	InputFilePath  []string
+	OutputFilePath []string
+	UserProgram    []string
 	WorkType       string
 	UserServerAddress string
 }
