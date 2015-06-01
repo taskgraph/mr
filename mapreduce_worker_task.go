@@ -15,6 +15,7 @@ import (
 	"github.com/taskgraph/taskgraph"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+	"github.com/coreos/go-etcd/etcd"
 )
 
 const nonExistWork = math.MaxUint64
@@ -26,6 +27,7 @@ type workerTask struct {
 	logger    *log.Logger
 	taskID    uint64
 	workID    uint64
+	etcdClient *etcd.Client
 
 	//channels
 	epochChange  chan *mapreduceEvent
@@ -70,12 +72,12 @@ func (mp *mapreduceTask) run() {
 			return
 
 		case dataReady := <-dataReady:
-			go mp.processWork(dataReady.ctx, dataReady.fromID, dataReady.method, dataReady.output)
+			go mp.processWork(dataReady.ctx, dataReady.fromID, dataReady.workID, dataReady.method, dataReady.output)
 		}
 	}
 }
 
-func (t *workerTask) processWork(ctx context.Context, fromID uint64, method string, message proto.Message) {
+func (t *workerTask) processWork(ctx context.Context, fromID uint64, workID uint64, method string, message proto.Message) {
 	resp, ok := output.(*pb.Response)
 	if !ok {
 		t.logger.Panicf("doDataRead, corruption in proto.Message.")
@@ -112,15 +114,30 @@ func (t *workerTask) initializeTaskEnv() error {
 	}
 }
 
-func (t *workerTask) grabTask(stop *chan bool) {
-	// To begin with, check the initial work state of this task
-	// if no work exist, grab new one
 
+func (t *workerTask) datarequestForWork(ctx context.Context, method string) {
+	master := t.framework.GetTopology()["Master"].GetNeighbors(mp.epoch)
+
+	for _, node := range master {
+		t.framework.DataRequest(ctx, node, method, &pb.Request{taskID: mp.taskID})
+	}
+}
+
+func (t *workerTask) grabWork(ctx context.Context, method string, stop chan bool) {
+	datarequestForWork(ctx, method)
 
 	// afterwards, watch etcd worker attribute "workStatus"
 	// if exist operation 
-
-
+	receiver := make(chan *etcd.Response, 1)
+	go client.Watch(HealthyPath(name), 0, true, receiver, stop)
+	for resp := range receiver {
+		if resp.Action != "set"{
+			continue
+		}
+		if resp.Node.Value == "non" {
+			datarequestForWork(ctx, method)
+		}
+	}
 }
 
 func (t *workerTask) emitKvPairs(userClient pb.MapperClient, str string, value string, stop) {
@@ -318,36 +335,33 @@ func (mp *workerTask) EnterEpoch(ctx context.Context, epoch uint64) {
 	mp.epochChange <- &mapreduceEvent{ctx: ctx, epoch: epoch}
 }
 
-func (mp *workerTask) grabWork(ctx context.Context, method string) {
-	master := t.framework.GetTopology()["Master"].GetNeighbors(mp.epoch)
 
-	for _, node := range master {
-		t.framework.DataRequest(ctx, node, method, &pb.Request{taskID: mp.taskID})
-	}
+func (t *workerTask) doEnterEpoch(ctx context.Context, epoch uint64) {
+	close(t.stopGrabTaskForEveryEpoch)
+	t.stopGrabTaskForEveryEpoch = make(chan bool, 1)
+	grabWork(ctx, "/proto.Master/GetWork", t.stopGrabTaskForEveryEpoch)
 }
 
-func (mp *mapreduceTask) doEnterEpoch(ctx context.Context, epoch uint64) {
-	grabWork(ctx, "/proto.Master/GetWork")
+func (t *workerTask) Exit() {
+	close(t.stopGrabTaskForEveryEpoch)
+	close(t.exitChan)
 }
 
-func (mp *mapreduceTask) Exit() {
-	close(mp.stopGrabTask)
-	close(mp.exitChan)
-}
-
-func (mp *mapreduceTask) CreateServer() *grpc.Server {
+func (t *workerTask) CreateServer() *grpc.Server {
 	server := grpc.NewServer()
-	pb.RegisterMapreduceServer(server, mp)
+	pb.RegisterMapreduceServer(server, t)
 	return server
 
 }
 
-func (mp *mapreduceTask) CreateOutputMessage(method string) proto.Message { return nil }
-
-func (mp *mapreduceTask) DataReady(ctx context.Context, fromID uint64, method string, output proto.Message) {
-	t.dataReady <- &event{ctx: ctx, fromID: fromID, method: method, output: output}
+func (t *workerTask) CreateOutputMessage(method string) proto.Message { 
+	return nil 
 }
 
-func (m *mapreduceTask) MetaReady(ctx context.Context, fromID uint64, LinkType, meta string) {
-	m.metaReady <- &mapreduceEvent{ctx: ctx, fromID: fromID, linkType: LinkType, meta: meta}
+func (t *workerTask) DataReady(ctx context.Context, fromID uint64, method string, output proto.Message) {
+	t.dataReady <- &event{ctx: ctx, fromID: fromID, method: method, workID : t.workID,  output: output}
+}
+
+func (t *workerTask) MetaReady(ctx context.Context, fromID uint64, LinkType, meta string) {
+	t.metaReady <- &mapreduceEvent{ctx: ctx, fromID: fromID, workID : t.workID, linkType: LinkType, meta: meta}
 }

@@ -99,17 +99,20 @@ func (t *masterTask) assignWork(taskID int) {
 	
 	for {
 		requestWorkStatus, err := t.etcdClient.Get(MapreduceNodeStatusPath(appname, taskID, "workStatus"), false, false)
-		if requestWorkStatus != -1 {
+		if err != nil {
+			log.Fatal("etcdutil: can not get worker status from etcd")
+		}
+		if requestWorkStatus.Node.Value != "non" {
 			t.notifyChanArr[taksID] <- t.config.WorkDir[requestWorkStatus]
 			return
 		}
 		t.currentWorkNum, err := t.etcdClient.Get(MapreduceNodeStatusPath(appname, 0, "currentWorkNum"), false, false)
 		if err != nil {
-			log.Fatal("etcdutil: can not get epoch from etcd")
+			log.Fatal("etcdutil: can not get master status from etcd")
 		}
 		t.totalWork, err := t.etcdClient.Get(MapreduceNodeStatusPath(appname, 0, "workNum"), false, false)
 		if err != nil {
-			log.Fatal("etcdutil: can not get epoch from etcd")
+			log.Fatal("etcdutil: can not get master status from etcd")
 		}
 		if (t.currentWorkNum + 1 >= t.totalWork) {
 			close(t.workDone)
@@ -134,14 +137,14 @@ func (t *masterTask) assignWork(taskID int) {
 	}
 }
 
-func (t *masterTask) processMessage(ctx context.Context, fromID uint64, workID uint64, linkType string, meta string) {
+func (t *masterTask) processMessage(ctx context.Context, fromID uint64, linkType string, meta string) {
 	switch t.taskType {
 	case "master":
 		matchWork, _ := regexp.MatchString("^WorkFinished[0-9]+$", meta)
 		switch {
 		case matchWork:
 			t.finishedWorkNum++
-			t.notifyWorker <- mapreduceEvent{ctx: ctx, fromID: mp.taskID, linkType: "Neighbors", meta: "WorkFinished" + strconv.FormatUint(mp.workID, 10)}
+			
 			if t.finishedWorkNum >= t.totalWork {
 				t.Exit()
 				return
