@@ -188,11 +188,11 @@ func (t *workerTask) Emit(key, val string) {
 	var KV mapperEmitKV
 	KV.Key = key
 	KV.Value = val
-	toShuffle := h.Sum32() % uint32(mp.mapreduceConfig.ReducerNum)
+	toShuffle := h.Sum32() % uint32(t.config.ReducerNum)
 	data, err := json.Marshal(KV)
 	data = append(data, '\n')
 	if err != nil {
-		mp.logger.Fatalf("json marshal error : ", err)
+		t.logger.Fatalf("json marshal error : ", err)
 	}
 	t.mapperWriteCloser[toShuffle].Write(data)
 }
@@ -224,7 +224,7 @@ func (t *workerTask) emitKvPairs(userClient pb.MapperClient, str string, value s
 				log.Fatalf("%v.ListFeatures(_) = _, %v", c, err)
 				return
 			}
-			fmt.Println(feature)
+			t.Emit(feature.Key, feature.Value)
 		}
 	}
 }
@@ -307,36 +307,36 @@ func (t *workerTask) collectKvPairs(userClient pb.ReducerClient, key string, val
 func (t *workerTask) reducerProcedure(ctx context.Context, workID uint64, workConfig WorkConfig, userClient pb.ReducerClient) {
 	t.logger.Println("In transfer Data function")
 	t.shuffleContainer = make(map[string][]string)
-	workNum := len(mp.mapreduceConfig.WorkDir["mapper"])
-	for i := 0; i < workNum; i++ {
-		shufflePath := mp.mapreduceConfig.InterDir + "/" + strconv.FormatUint(mp.workID, 10) + "from" + strconv.Itoa(i)
-		shuffleReadCloser, err := mp.mapreduceConfig.FilesystemClient.OpenReadCloser(shufflePath)
-		mp.logger.Println("get shuffle data from ", shufflePath)
+
+	for i := 0; i < len(workConfig.InputFilePath); i++ {
+		shufflePath := workConfig.InputFilePath[i]
+		shuffleReadCloser, err := t.config.FilesystemClient.OpenReadCloser(shufflePath)
+		t.logger.Println("get shuffle data from ", shufflePath)
 		if err != nil {
-			mp.logger.Fatalf("MapReduce : get azure storage client failed, ", err)
+			t.logger.Fatalf("MapReduce : get azure storage client failed, ", err)
 		}
-		bufioReader := bufio.NewReaderSize(shuffleReadCloser, mp.mapreduceConfig.ReaderBufferSize)
+		bufioReader := bufio.NewReaderSize(shuffleReadCloser, t.config.ReaderBufferSize)
 		var str []byte
 		err = nil
 		for err != io.EOF {
 			str, err = bufioReader.ReadBytes('\n')
 			if err != io.EOF && err != nil {
-				mp.logger.Fatalf("MapReduce : Shuffle read Error, ", err)
+				t.logger.Fatalf("MapReduce : Shuffle read Error, ", err)
 			}
 			if err != io.EOF {
 				str = str[:len(str)-1]
 			}
-			mp.processShuffleKV(str)
+			t.processShuffleKV(str)
 		}
 	}
 
-	mp.Clean(tranferPath)
-	mp.logger.Println("output shuffle data to ", tranferPath)
+	t.Clean(tranferPath)
+	t.logger.Println("output shuffle data to ", tranferPath)
 
-	reducerWriteCloser, err := mp.mapreduceConfig.FilesystemClient.OpenWriteCloser(tranferPath)
+	reducerWriteCloser, err := t.config.FilesystemClient.OpenWriteCloser(tranferPath)
 	t.reducerWriteCloser = bufio.NewWriterSize(reducerWriteCloser, t.config.WriterBufferSize)
 	if err != nil {
-		mp.logger.Fatalf("MapReduce : Mapper read Error, ", err)
+		t.logger.Fatalf("MapReduce : Mapper read Error, ", err)
 	}
 	for k := range mp.shuffleContainer {
 		t.collectKvPairs(k, t.shuffleContianer[k], false)
@@ -344,11 +344,11 @@ func (t *workerTask) reducerProcedure(ctx context.Context, workID uint64, workCo
 	t.reducerWriteCloser.Flush()
 	t.collectKvPairs("Stop", []string{}, true)
 
-	mp.notifyChan <- &mapreduceEvent{ctx: ctx, epoch: mp.epoch, linkType: "Master", meta: "ReducerWorkFinished" + strconv.FormatUint(mp.workID, 10)}
+	t.notifyChan <- &mapreduceEvent{ctx: ctx, epoch: t.epoch, linkType: "Master", meta: "ReducerWorkFinished" + strconv.FormatUint(mp.workID, 10)}
 }
 
-func (mp *workerTask) EnterEpoch(ctx context.Context, epoch uint64) {
-	mp.epochChange <- &mapreduceEvent{ctx: ctx, epoch: epoch}
+func (t *workerTask) EnterEpoch(ctx context.Context, epoch uint64) {
+	t.epochChange <- &mapreduceEvent{ctx: ctx, epoch: epoch}
 }
 
 func (t *workerTask) doEnterEpoch(ctx context.Context, epoch uint64) {
