@@ -5,6 +5,8 @@ import (
 	"math"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/protobuf/proto"
@@ -16,15 +18,16 @@ import (
 const nonExistWork = math.MaxUint64
 
 type masterTask struct {
-	framework      taskgraph.Framework
-	taskType       string
-	epoch          uint64
-	logger         *log.Logger
-	taskID         uint64
-	numOfTasks     uint64
-	etcdClient     *etcd.Client
-	currentWorkNum uint64
-	totalWork      uint64
+	framework       taskgraph.Framework
+	taskType        string
+	epoch           uint64
+	logger          *log.Logger
+	taskID          uint64
+	numOfTasks      uint64
+	etcdClient      *etcd.Client
+	currentWorkNum  uint64
+	totalWork       uint64
+	finishedWorkNum uint64
 
 	//channels
 	epochChange   chan *mapreduceEvent
@@ -49,6 +52,7 @@ func (t *masterTask) Init(taskID uint64, framework taskgraph.Framework) {
 	t.dataReady = make(chan *event, t.numOfTasks)
 	t.metaReady = make(chan *event, t.numOfTasks)
 	t.notifyChanArr = make([]chan *event, t.numOfTasks)
+	t.finishedWorkNum = 0
 	t.workDone = make(bool, 1)
 	for i := range t.notifyChanArr {
 		t.notifyChanArr[i] = make(bool, 1)
@@ -56,7 +60,30 @@ func (t *masterTask) Init(taskID uint64, framework taskgraph.Framework) {
 	}
 	t.workerDone = make(chan *event, 1)
 	t.exitChan = make(chan *event)
+	err := t.initialEtcd()
+	if err != nil {
+		t.logger.Fatalf(err)
+	}
 	go t.run()
+}
+
+func (t *masterTask) initializeEtcd() error {
+	_, err := t.etcdClient.Create(MapreduceNodeStatusPath(appname, 0, "currentWorkNum"), "0", 0)
+	if err != nil {
+		if strings.Contains(err.Error(), "Key already exists") {
+			return nil
+		}
+		return err
+	}
+
+	_, err = t.etcdClient.Create(MapreduceNodeStatusPath(appname, 0, "workNum"), strconv.Itoa(len(t.config.WorkDir)), 0)
+	if err != nil {
+		if strings.Contains(err.Error(), "Key already exists") {
+			return nil
+		}
+		return err
+	}
+
 }
 
 func (t *masterTask) run() {
@@ -129,7 +156,7 @@ func (t *masterTask) assignWork(taskID int) {
 		// update master overall work state
 		t.updateNodeStatus(takdID)
 
-		if t.currentWorkNum+1 >= t.totalWork {
+		if t.currentWorkNum >= t.totalWork {
 			close(t.workDone)
 			return
 		}
@@ -148,7 +175,7 @@ func (t *masterTask) assignWork(taskID int) {
 		}
 
 		if grabWork {
-			t.notifyChanArr[taskID] <- t.config.WorkDir[t.currentWorkNum+1]
+			t.notifyChanArr[taskID] <- t.config.WorkDir[t.currentWorkNum]
 			return
 		}
 	}
