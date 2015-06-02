@@ -40,6 +40,7 @@ type WorkConfig struct {
 	UserProgram    []string
 	WorkType       string
 	UserServerAddress string
+	SupplyContent []string
 }
 
 type mapreduceEvent {

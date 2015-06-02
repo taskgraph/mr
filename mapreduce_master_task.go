@@ -108,13 +108,14 @@ func (t *masterTask) GetWork(in *WorkRequest) (*WorkConfigResponse, error) {
 	for {
 		select {
 		case workConfig := <-t.notifyChanArr[in.TaskID]:
-			key := []string{"InputFilePath", "OutputFilePath", "UserServerAddress", "UserProgram", "WorkType"}
+			key := []string{"InputFilePath", "OutputFilePath", "UserServerAddress", "UserProgram", "WorkType", "SupplyContent"}
 			val := []string{
 				workConfig.InputFilePath,
 				workConfig.OutputFilePath,
 				workConfig.UserServerAddress,
 				workConfig.UserProgram,
 				workConfig.WorkType,
+				workConfig.SupplyContent,
 			}
 			return &pb.WorkConfigResponse{Key: key, Value: val}, nil
 		case <-t.workDone:

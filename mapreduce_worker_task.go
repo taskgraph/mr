@@ -9,6 +9,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -88,8 +89,10 @@ func (t *workerTask) run() {
 	}
 }
 
-func (t *workerTask) startNewUserServer(cmd string) {
-	// need implement
+func (t *workerTask) startNewUserServer(cmd []string) {
+	argv := []string{"-port=" + strconv.FormatUint(t.taskID+10000, 10)}
+	c := exec.Command(cmd[0], argv)
+
 }
 
 func (t *workerTask) getNewMapperUserServer(address string) {
@@ -127,6 +130,8 @@ func (t *workerTask) processWork(ctx context.Context, fromID uint64, workID uint
 			workConfig.UserServerAddress = resq.Value[i]
 		case "WorkType":
 			workConfig.WorkType = resp.Value[i]
+		case "SupplyContent":
+			workConfig.SupplyContent = resp.Value[i]
 		}
 	}
 
@@ -166,9 +171,9 @@ func (t *workerTask) grabWork(ctx context.Context, method string, stop chan bool
 	datarequestForWork(ctx, method)
 
 	// afterwards, watch etcd worker attribute "workStatus"
-	// if exist operation
+	// if exist "set' operation, and the value is "non"
 	receiver := make(chan *etcd.Response, 1)
-	go client.Watch(MapreduceNodeStatusPath(t.config.AppName, t.taskID, "workStatus"), 0, true, receiver, stop)
+	go client.Watch(MapreduceNodeStatusPath(t.config.AppName, t.taskID, "workStatus"), 0, false, receiver, stop)
 	for resp := range receiver {
 		if resp.Action != "set" {
 			continue
@@ -197,6 +202,10 @@ func (t *workerTask) Emit(key, val string) {
 	t.mapperWriteCloser[toShuffle].Write(data)
 }
 
+func (t *workerTask) Collect(key string, val string) {
+	t.reducerWriteCloser.Write([]byte(key + " " + val + "\n"))
+}
+
 func (t *workerTask) Clean(path string) {
 	err := mp.mapreduceConfig.FilesystemClient.Remove(path)
 	if err != nil {
@@ -204,24 +213,19 @@ func (t *workerTask) Clean(path string) {
 	}
 }
 
-func (t *workerTask) Collect(key string, val string) {
-	t.reducerWriteCloser.Write([]byte(key + " " + val + "\n"))
-}
-
 func (t *workerTask) emitKvPairs(userClient pb.MapperClient, str string, value string, stop chan bool) {
 	stream, err := userClient.GetEmitResult(context.Background(), &pb.MapperRequest{Key: str, Value: v})
 	if err != nil {
-		log.Fatalf("could not greet: %v", err)
+		t.logger.Fatalf("could not access the user program server : %v", err)
 	}
 	if !stop {
-		fmt.Println("in Emit steps")
 		for {
 			feature, err := stream.Recv()
 			if err == io.EOF {
 				break
 			}
 			if err != nil {
-				log.Fatalf("%v.ListFeatures(_) = _, %v", c, err)
+				log.Fatalf("%v.GetEmitResult, %v", userClient, err)
 				return
 			}
 			t.Emit(feature.Key, feature.Value)
@@ -241,31 +245,35 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID uint64, workCon
 		if err != nil {
 			t.logger.Fatalf("MapReduce : get mapreduce filesystem client writer failed, ", err)
 		}
-		t.WriteCloser = append(mp.mapperWriteCloser, *bufio.NewWriterSize(tmpWrite, mp.mapreduceConfig.WriterBufferSize))
+		t.WriteCloser = append(mp.mapperWriteCloser, *bufio.NewWriterSize(tmpWrite, t.config.WriterBufferSize))
 	}
 
 	// Input file loading
-	mapperReaderCloser, err := t.FilesystemClient.OpenReadCloser(workConfig.InputFilePath[0])
-	if err != nil {
-		t.logger.Fatalf("MapReduce : get mapreduce filesystem client reader failed, ", err)
+	for readFileID := 0; readFileID < len(workConfig.InputFilePath); readFileID++ {
+		mapperReaderCloser, err := t.FilesystemClient.OpenReadCloser(workConfig.InputFilePath[readFileID])
+		if err != nil {
+			t.logger.Fatalf("MapReduce : get mapreduce filesystem client reader failed, ", err)
+		}
+
+		var str string
+		bufioReader := bufio.NewReaderSize(mapperReaderCloser, mp.config.ReaderBufferSize)
+
+		for err != io.EOF {
+			str, err = bufioReader.ReadString('\n')
+
+			if err != io.EOF && err != nil {
+				mp.logger.Fatalf("MapReduce : mapper read Error, ", err)
+			}
+			if err != io.EOF {
+				str = str[:len(str)-1]
+			}
+			t.emitKvPairs(userClient, str, "", false)
+		}
+		// stop the reader of corresponding file
+		mapperReaderCloser.Close()
 	}
 
-	var str string
-	bufioReader := bufio.NewReaderSize(mapperReaderCloser, mp.config.ReaderBufferSize)
-
-	for err != io.EOF {
-		str, err = bufioReader.ReadString('\n')
-
-		if err != io.EOF && err != nil {
-			mp.logger.Fatalf("MapReduce : Mapper read Error, ", err)
-		}
-		if err != io.EOF {
-			str = str[:len(str)-1]
-		}
-		t.emitKvPairs(userClient, str, "", false)
-	}
-	// stop the reader and user program grpc client
-	mapperReaderCloser.Close()
+	// stop user program grpc client
 	t.emitKvPairs(userClient, "stop", "stop", true)
 
 	//flush output result
@@ -273,6 +281,7 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID uint64, workCon
 		t.mapperWriteCloser[i].Flush()
 	}
 	t.logger.Println("FileRead finished")
+
 	// notify the master mapper work has been done
 	t.notifyChan <- &mapreduceEvent{ctx: ctx, workID: mp.workID, fromID: mp.taskID, linkType: "Master", meta: "WorkFinished" + strconv.FormatUint(mp.workID, 10)}
 }
@@ -280,7 +289,7 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID uint64, workCon
 func (t *workerTask) processShuffleKV(str []byte) {
 	var tp mapperEmitKV
 	if err := json.Unmarshal([]byte(str), &tp); err == nil {
-		mp.shuffleContainer[tp.Key] = append(mp.shuffleContainer[tp.Key], tp.Value)
+		t.shuffleContainer[tp.Key] = append(t.shuffleContainer[tp.Key], tp.Value)
 	}
 }
 
@@ -296,7 +305,7 @@ func (t *workerTask) collectKvPairs(userClient pb.ReducerClient, key string, val
 				break
 			}
 			if err != nil {
-				log.Fatalf("%v.ListFeatures(_) = _, %v", c, err)
+				log.Fatalf("%v.GetCollectResult, %v", userClient, err)
 				return
 			}
 			t.Collect(feature.Key, feature.Value)
@@ -305,43 +314,58 @@ func (t *workerTask) collectKvPairs(userClient pb.ReducerClient, key string, val
 }
 
 func (t *workerTask) reducerProcedure(ctx context.Context, workID uint64, workConfig WorkConfig, userClient pb.ReducerClient) {
-	t.logger.Println("In transfer Data function")
-	t.shuffleContainer = make(map[string][]string)
+	for ProcessID := 0; ProcessID < len(workConfig.InputFilePath); ProcessID++ {
+		t.shuffleContainer = make(map[string][]string)
 
-	for i := 0; i < len(workConfig.InputFilePath); i++ {
-		shufflePath := workConfig.InputFilePath[i]
-		shuffleReadCloser, err := t.config.FilesystemClient.OpenReadCloser(shufflePath)
-		t.logger.Println("get shuffle data from ", shufflePath)
+		arg := strings.Split(workConfig.SupplyContent[ProcessID], " ")
+
+		mapperWorkSum, err := strconv.ParseUint(arg[0], 10, 64)
 		if err != nil {
-			t.logger.Fatalf("MapReduce : get azure storage client failed, ", err)
+			t.logger.Fatalf("Failed to get argv mapperWorkSum : %v", err)
 		}
-		bufioReader := bufio.NewReaderSize(shuffleReadCloser, t.config.ReaderBufferSize)
-		var str []byte
-		err = nil
-		for err != io.EOF {
-			str, err = bufioReader.ReadBytes('\n')
-			if err != io.EOF && err != nil {
-				t.logger.Fatalf("MapReduce : Shuffle read Error, ", err)
-			}
-			if err != io.EOF {
-				str = str[:len(str)-1]
-			}
-			t.processShuffleKV(str)
+
+		reducerID, err := strconv.ParseUint(arg[1], 10, 64)
+		if err != nil {
+			t.logger.Fatalf("Failed to get argv reducerID : %v", err)
 		}
+
+		for i := 0; i < mapperWorkSum; i++ {
+			shufflePath := workConfig.InputFilePath[i] + "/" + arg[1] + "from" + strconv.Itoa(i)
+			shuffleReadCloser, err := t.config.FilesystemClient.OpenReadCloser(shufflePath)
+			t.logger.Println("get shuffle data from ", shufflePath)
+			if err != nil {
+				t.logger.Fatalf("MapReduce : get azure storage client failed, ", err)
+			}
+			bufioReader := bufio.NewReaderSize(shuffleReadCloser, t.config.ReaderBufferSize)
+			var str []byte
+			err = nil
+			for err != io.EOF {
+				str, err = bufioReader.ReadBytes('\n')
+				if err != io.EOF && err != nil {
+					t.logger.Fatalf("MapReduce : Shuffle read Error, ", err)
+				}
+				if err != io.EOF {
+					str = str[:len(str)-1]
+				}
+				t.processShuffleKV(str)
+			}
+		}
+
+		t.Clean(tranferPath)
+
+		reducerWriteCloser, err := t.config.FilesystemClient.OpenWriteCloser(workConfig.OutputFilePath[ProcessID])
+		if err != nil {
+			t.logger.Fatalf("MapReduce : get reducer writer error, %v", err)
+		}
+
+		t.reducerWriteCloser = bufio.NewWriterSize(reducerWriteCloser, t.config.WriterBufferSize)
+
+		for k := range mp.shuffleContainer {
+			t.collectKvPairs(k, t.shuffleContianer[k], false)
+		}
+		t.reducerWriteCloser.Flush()
 	}
 
-	t.Clean(tranferPath)
-	t.logger.Println("output shuffle data to ", tranferPath)
-
-	reducerWriteCloser, err := t.config.FilesystemClient.OpenWriteCloser(tranferPath)
-	t.reducerWriteCloser = bufio.NewWriterSize(reducerWriteCloser, t.config.WriterBufferSize)
-	if err != nil {
-		t.logger.Fatalf("MapReduce : Mapper read Error, ", err)
-	}
-	for k := range mp.shuffleContainer {
-		t.collectKvPairs(k, t.shuffleContianer[k], false)
-	}
-	t.reducerWriteCloser.Flush()
 	t.collectKvPairs("Stop", []string{}, true)
 
 	t.notifyChan <- &mapreduceEvent{ctx: ctx, epoch: t.epoch, linkType: "Master", meta: "ReducerWorkFinished" + strconv.FormatUint(mp.workID, 10)}
