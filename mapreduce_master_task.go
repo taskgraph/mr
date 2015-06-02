@@ -71,18 +71,19 @@ func (t *masterTask) initializeEtcd() error {
 	_, err := t.etcdClient.Create(MapreduceNodeStatusPath(appname, 0, "currentWorkNum"), "0", 0)
 	if err != nil {
 		if strings.Contains(err.Error(), "Key already exists") {
-			return nil
+		} else {
+			return err
 		}
-		return err
 	}
 
 	_, err = t.etcdClient.Create(MapreduceNodeStatusPath(appname, 0, "workNum"), strconv.Itoa(len(t.config.WorkDir)), 0)
 	if err != nil {
 		if strings.Contains(err.Error(), "Key already exists") {
-			return nil
+		} else {
+			return err
 		}
-		return err
 	}
+	return nil
 
 }
 
