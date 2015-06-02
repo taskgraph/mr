@@ -69,7 +69,7 @@ func (m *ReducerResponse) String() string { return proto1.CompactTextString(m) }
 func (*ReducerResponse) ProtoMessage()    {}
 
 type WorkRequest struct {
-	TaskID string `protobuf:"bytes,1,opt,name=taskID" json:"taskID,omitempty"`
+	TaskID uint64 `protobuf:"varint,1,opt,name=taskID" json:"taskID,omitempty"`
 }
 
 func (m *WorkRequest) Reset()         { *m = WorkRequest{} }
@@ -356,4 +356,33 @@ var _Master_serviceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
+}
+
+// Client API for Worker service
+
+type WorkerClient interface {
+}
+
+type workerClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewWorkerClient(cc *grpc.ClientConn) WorkerClient {
+	return &workerClient{cc}
+}
+
+// Server API for Worker service
+
+type WorkerServer interface {
+}
+
+func RegisterWorkerServer(s *grpc.Server, srv WorkerServer) {
+	s.RegisterService(&_Worker_serviceDesc, srv)
+}
+
+var _Worker_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.Worker",
+	HandlerType: (*WorkerServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams:     []grpc.StreamDesc{},
 }

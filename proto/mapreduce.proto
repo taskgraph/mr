@@ -36,7 +36,7 @@ service Master {
 }
 
 message WorkRequest {
-  string taskID = 1;
+  uint64 taskID = 1;
 }
 
 message WorkConfigResponse {
@@ -44,3 +44,6 @@ message WorkConfigResponse {
   repeated string value = 2;
 }
 
+
+service Worker {
+}

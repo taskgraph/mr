@@ -9,10 +9,10 @@ import (
 
 	mapreduce "../../mr"
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/plutoshe/taskgraph/example/topo"
-	"github.com/plutoshe/taskgraph/filesystem"
-	"github.com/plutoshe/taskgraph/framework"
 	"github.com/taskgraph/taskgraph/controller"
+	"github.com/taskgraph/taskgraph/example/topo"
+	"github.com/taskgraph/taskgraph/filesystem"
+	"github.com/taskgraph/taskgraph/framework"
 )
 
 // Input files defined in "input($mapperTaskID).txt"
@@ -23,7 +23,7 @@ func main() {
 	reducerNum := flag.Int("reducerNum", 3, "reducerNum")
 	azureAccountName := flag.String("azureAccountName", "spluto", "azureAccountName")
 	azureAccountKey := flag.String("azureAccountKey", "", "azureAccountKey")
-	outputDir := flag.String("outputDir", "0newmapreducepathformapreduce000", "outputDir")
+	// outputDir := flag.String("outputDir", "0newmapreducepathformapreduce000", "outputDir")
 
 	flag.Parse()
 	if *job == "" {
@@ -44,17 +44,17 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
-	mapperWorkDir := make([]mapreduce.Work, 0)
+	mapperWorkDir := make([]mapreduce.WorkConfig, 0)
 
 	for inputM := 1; inputM <= *mapperNum; inputM++ {
 		inputFile := "testforcomplexmapreduceframework/textForExamination" + strconv.Itoa(inputM)
-		newWork := mapreduce.Work{}
+		newWork := mapreduce.WorkConfig{}
 		newWork.InputFilePath = []string{inputFile}
 		newWork.OutputFilePath = []string{"mapreducerprocesstemporaryresult"}
-		newWork.UserProgram = "./sample_mapper_server"
+		newWork.UserProgram = []string{"./sample_mapper_server"}
 		newWork.UserServerAddress = ""
 		newWork.WorkType = "Mapper"
-		newWokr.SupplyContent = ""
+		newWork.SupplyContent = []string{""}
 		mapperWorkDir = append(mapperWorkDir, newWork)
 	}
 
@@ -67,7 +67,7 @@ func main() {
 		MapperNum:  uint64(*mapperNum),
 		ReducerNum: uint64(*reducerNum),
 		WorkNum:    uint64(*mapperNum),
-		NodeNum : uint64(*mapperNum)
+		NodeNum:    uint64(*mapperNum),
 
 		AppName:          *job,
 		EtcdURLs:         etcdURLs,
@@ -82,13 +82,13 @@ func main() {
 	switch *programType {
 	case "c":
 		log.Printf("controller")
-		controller := controller.New(mapreduceConfig.AppName, etcd.NewClient(mapreduceConfig.EtcdURLs), uint64(ntask), []string{"Prefix", "Suffix", "Master", "Slave"})
+		controller := controller.New(mapperConfig.AppName, etcd.NewClient(mapperConfig.EtcdURLs), uint64(ntask), []string{"Prefix", "Suffix", "Master", "Slave"})
 		controller.Start()
 		controller.WaitForJobDone()
 
 	case "t":
 		log.Printf("mapper task")
-		bootstrap := framework.NewBootStrap(mapreduceConfig.AppName, mapreduceConfig.EtcdURLs, createListener(), ll)
+		bootstrap := framework.NewBootStrap(mapperConfig.AppName, mapperConfig.EtcdURLs, createListener(), ll)
 		taskBuilder := &mapreduce.MapreduceTaskBuilder{MapreduceConfig: mapperConfig}
 		bootstrap.SetTaskBuilder(taskBuilder)
 		bootstrap.AddLinkage("Master", topoMaster)
