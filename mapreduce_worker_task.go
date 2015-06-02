@@ -7,9 +7,7 @@ import (
 	"hash/fnv"
 	"io"
 	"log"
-	"math"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 
@@ -20,8 +18,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
-
-const nonExistWork = math.MaxUint64
 
 type workerTask struct {
 	framework          taskgraph.Framework
@@ -58,7 +54,7 @@ func (t *workerTask) Init(taskID uint64, framework taskgraph.Framework) {
 	t.logger = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
 	t.taskID = taskID
 	t.framework = framework
-	t.finishedTask = make(map[uint64]bool)
+	t.etcdClient = etcd.NewClient(t.config.EtcdURLs)
 	//channel init
 	t.stopGrabTaskForEveryEpoch = make(chan bool, 1)
 	t.epochChange = make(chan *mapreduceEvent, 1)
@@ -72,17 +68,17 @@ func (t *workerTask) Init(taskID uint64, framework taskgraph.Framework) {
 func (t *workerTask) run() {
 	for {
 		select {
-		case ec := <-mp.epochChange:
-			go mp.doEnterEpoch(ec.ctx, ec.epoch)
+		case ec := <-t.epochChange:
+			go t.doEnterEpoch(ec.ctx, ec.epoch)
 
-		case notify := <-mp.notifyChan:
-			mp.framework.FlagMeta(notify.ctx, notify.linkType, notify.meta)
+		case notify := <-t.notifyChan:
+			t.framework.FlagMeta(notify.ctx, notify.linkType, notify.meta)
 
-		case <-mp.exitChan:
+		case <-t.exitChan:
 			return
 
 		case dataReady := <-t.dataReady:
-			go mp.processWork(dataReady.ctx, dataReady.fromID, t.workID, dataReady.method, dataReady.output)
+			go t.processWork(dataReady.ctx, dataReady.fromID, t.workID, dataReady.method, dataReady.output)
 		case metaReady := <-t.metaReady:
 
 		}
@@ -91,28 +87,28 @@ func (t *workerTask) run() {
 
 func (t *workerTask) startNewUserServer(cmd []string) {
 	argv := []string{"-port=" + strconv.FormatUint(t.taskID+10000, 10)}
-	c := exec.Command(cmd[0], argv)
+	// c := exec.Command(cmd[0], argv)
 
 }
 
-func (t *workerTask) getNewMapperUserServer(address string) {
+func (t *workerTask) getNewMapperUserServer(address string) pb.MapperClient {
 	conn, err := grpc.Dial(address + fmt.Sprintf(":%d", t.userSeverPort))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
-	c = pb.NewMapperClient(conn)
+	return pb.NewMapperClient(conn)
 }
 
-func (t *workerTask) getNewReducerUserServer(address string) {
+func (t *workerTask) getNewReducerUserServer(address string) pb.ReducerClient {
 	conn, err := grpc.Dial(address + fmt.Sprintf(":%d", t.userSeverPort))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
-	c = pb.NewReducerClient(conn)
+	return pb.NewReducerClient(conn)
 }
 
-func (t *workerTask) processWork(ctx context.Context, fromID uint64, workID uint64, method string, message proto.Message) {
-	resp, ok := output.(*pb.Response)
+func (t *workerTask) processWork(ctx context.Context, fromID uint64, workID uint64, method string, output proto.Message) {
+	resp, ok := output.(*pb.WorkConfigResponse)
 	if !ok {
 		t.logger.Panicf("doDataRead, corruption in proto.Message.")
 	}

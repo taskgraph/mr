@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	pb "./proto"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/protobuf/proto"
-	"github.com/taskgraph//taskgraph"
+	"github.com/taskgraph/taskgraph"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -35,7 +36,7 @@ type masterTask struct {
 	metaReady     chan *mapreduceEvent
 	getWork       chan int
 	finishedChan  chan *mapreduceEvent
-	notifyChanArr []chan *WorkConfig
+	notifyChanArr []chan WorkConfig
 	exitChan      chan struct{}
 	workDone      chan bool
 
@@ -47,28 +48,28 @@ func (t *masterTask) Init(taskID uint64, framework taskgraph.Framework) {
 	t.framework = framework
 	t.logger = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
 
-	t.epochChange = make(chan *event, 1)
-	t.getWork = make(chan *event, t.numOfTasks)
-	t.dataReady = make(chan *event, t.numOfTasks)
-	t.metaReady = make(chan *event, t.numOfTasks)
-	t.notifyChanArr = make([]chan *event, t.numOfTasks)
+	t.etcdClient = etcd.NewClient(t.config.EtcdURLs)
+	t.epochChange = make(chan *mapreduceEvent, 1)
+	t.getWork = make(chan int, 1)
+	t.dataReady = make(chan *mapreduceEvent, t.config.NodeNum)
+	t.metaReady = make(chan *mapreduceEvent, t.config.NodeNum)
+	t.notifyChanArr = make([]chan WorkConfig, t.config.NodeNum)
 	t.finishedWorkNum = 0
-	t.workDone = make(bool, 1)
-	for i := range t.notifyChanArr {
-		t.notifyChanArr[i] = make(bool, 1)
+	t.workDone = make(chan bool, 1)
+	// for i := range t.notifyChanArr {
+	// 	t.notifyChanArr[i] = make(bool, 1)
 
-	}
-	t.workerDone = make(chan *event, 1)
-	t.exitChan = make(chan *event)
-	err := t.initialEtcd()
+	// }
+	t.exitChan = make(chan struct{})
+	err := t.initializeEtcd()
 	if err != nil {
-		t.logger.Fatalf(err)
+		t.logger.Fatal(err)
 	}
 	go t.run()
 }
 
 func (t *masterTask) initializeEtcd() error {
-	_, err := t.etcdClient.Create(MapreduceNodeStatusPath(appname, 0, "currentWorkNum"), "0", 0)
+	_, err := t.etcdClient.Create(MapreduceNodeStatusPath(t.config.AppName, 0, "currentWorkNum"), "0", 0)
 	if err != nil {
 		if strings.Contains(err.Error(), "Key already exists") {
 		} else {
@@ -76,7 +77,7 @@ func (t *masterTask) initializeEtcd() error {
 		}
 	}
 
-	_, err = t.etcdClient.Create(MapreduceNodeStatusPath(appname, 0, "workNum"), strconv.Itoa(len(t.config.WorkDir)), 0)
+	_, err = t.etcdClient.Create(MapreduceNodeStatusPath(t.config.AppName, 0, "workNum"), strconv.Itoa(len(t.config.WorkDir)), 0)
 	if err != nil {
 		if strings.Contains(err.Error(), "Key already exists") {
 		} else {
@@ -103,11 +104,12 @@ func (t *masterTask) run() {
 
 // grpc interface providing worker invoke to grab new work
 // implements as a serialize program by channel.
-func (t *masterTask) GetWork(in *WorkRequest) (*WorkConfigResponse, error) {
-	t.getWork <- in.TaskID
+func (t *masterTask) GetWork(in *pb.WorkRequest, stream pb.Master_GetWorkServer) error {
+	requestTaskID, _ := strconv.Atoi(in.TaskID)
+	t.getWork <- requestTaskID
 	for {
 		select {
-		case workConfig := <-t.notifyChanArr[in.TaskID]:
+		case workConfig := <-t.notifyChanArr[requestTaskID]:
 			key := []string{"InputFilePath", "OutputFilePath", "UserServerAddress", "UserProgram", "WorkType", "SupplyContent"}
 			val := []string{
 				workConfig.InputFilePath,
@@ -117,27 +119,28 @@ func (t *masterTask) GetWork(in *WorkRequest) (*WorkConfigResponse, error) {
 				workConfig.WorkType,
 				workConfig.SupplyContent,
 			}
-			return &pb.WorkConfigResponse{Key: key, Value: val}, nil
+			stream.Send(&pb.WorkConfigResponse{Key: key, Value: val})
+			return nil
 		case <-t.workDone:
-			return nil, nil
+			return nil
 		}
 	}
-	return nil, nil
+	return nil
 }
 
-func (t *masterTask) updateNodeStatue() {
+func (t *masterTask) updateNodeStatus() {
 
-	request, err := t.etcdClient.Get(MapreduceNodeStatusPath(appname, 0, "currentWorkNum"), false, false)
+	request, err := t.etcdClient.Get(MapreduceNodeStatusPath(t.config.AppName, 0, "currentWorkNum"), false, false)
 	if err != nil {
 		log.Fatal("etcdutil: can not get master status from etcd")
 	}
-	t.currentWorkNum = request.Node.Value
+	t.currentWorkNum, _ = strconv.ParseUint(request.Node.Value, 10, 64)
 
-	request, err = t.etcdClient.Get(MapreduceNodeStatusPath(appname, 0, "workNum"), false, false)
+	request, err = t.etcdClient.Get(MapreduceNodeStatusPath(t.config.AppName, 0, "workNum"), false, false)
 	if err != nil {
 		log.Fatal("etcdutil: can not get master status from etcd")
 	}
-	t.totalWork = request.Node.Value
+	t.totalWork, _ = strconv.ParseUint(request.Node.Value, 10, 64)
 
 }
 
@@ -146,17 +149,19 @@ func (t *masterTask) assignWork(taskID int) {
 	for {
 
 		// check worker work status
-		requestWorkStatus, err := t.etcdClient.Get(MapreduceNodeStatusPath(appname, taskID, "workStatus"), false, false)
+		requestWorkStatus, err := t.etcdClient.Get(MapreduceNodeStatusPath(t.config.AppName, taskID, "workStatus"), false, false)
 		if err != nil {
 			log.Fatal("etcdutil: can not get worker status from etcd")
 		}
 		if requestWorkStatus.Node.Value != "non" {
-			t.notifyChanArr[taksID] <- t.config.WorkDir[requestWorkStatus]
+			workID, _ := strconv.Atoi(requestWorkStatus.Node.Value)
+
+			t.notifyChanArr[taskID] <- t.config.WorkDir[workID]
 			return
 		}
 
 		// update master overall work state
-		t.updateNodeStatus(takdID)
+		t.updateNodeStatus()
 
 		if t.currentWorkNum >= t.totalWork {
 			close(t.workDone)
@@ -166,10 +171,10 @@ func (t *masterTask) assignWork(taskID int) {
 		// try grab work by compareAndSwap op
 		// if sucessed, transfre work config to pointed task.
 		grabWork, err := t.etcdClient.CompareAndSwap(
-			MapreduceNodeStatusPath(appname, 0, "currentWorkNum"),
-			t.currentWorkNum+1,
+			MapreduceNodeStatusPath(t.config.AppName, 0, "currentWorkNum"),
+			strconv.FormatUint(t.currentWorkNum+1, 10),
 			0,
-			t.currentWorkNum,
+			strconv.FormatUint(t.currentWorkNum, 10),
 			0,
 		)
 		if err != nil {
@@ -188,7 +193,7 @@ func (t *masterTask) processMessage(ctx context.Context, fromID uint64, linkType
 	switch {
 	case matchWork:
 		t.finishedWorkNum++
-		setWorkStatus, err := t.etcdClient.Set(MapreduceNodeStatusPath(appname, taskID, "workStatus"), "non", 0)
+		setWorkStatus, err := t.etcdClient.Set(MapreduceNodeStatusPath(t.config.AppName, fromID, "workStatus"), "non", 0)
 		if err != nil {
 			t.logger.Fatalf("Set work status failed")
 		}
@@ -200,12 +205,12 @@ func (t *masterTask) processMessage(ctx context.Context, fromID uint64, linkType
 	}
 }
 
-func (*masterTask) Exit() {
+func (t *masterTask) Exit() {
 	close(t.exitChan)
 }
 
 func (t *masterTask) MetaReady(ctx context.Context, fromID uint64, linkType, meta string) {
-	t.metaReady <- &mapreduceEvent{ctx: ctx, fromID: fromID, linkType: LinkType, meta: meta}
+	t.metaReady <- &mapreduceEvent{ctx: ctx, fromID: fromID, linkType: linkType, meta: meta}
 }
 
 func (*masterTask) DataReady(ctx context.Context, fromID uint64, method string, output proto.Message) {
@@ -216,7 +221,7 @@ func (t *masterTask) EnterEpoch(ctx context.Context, epoch uint64) {
 
 }
 
-func (t *bwmfTask) CreateOutputMessage(method string) proto.Message {
+func (t *masterTask) CreateOutputMessage(method string) proto.Message {
 	switch method {
 	case "/proto.Master/GetWork":
 		return new(pb.WorkConfigResponse)
@@ -226,6 +231,6 @@ func (t *bwmfTask) CreateOutputMessage(method string) proto.Message {
 
 func (t *masterTask) CreateServer() *grpc.Server {
 	server := grpc.NewServer()
-	pb.RegisterBlockDataServer(server, t)
+	pb.RegisterMasterServer(server, t)
 	return server
 }
