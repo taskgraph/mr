@@ -52,12 +52,15 @@ func (t *workerTask) Init(taskID uint64, framework taskgraph.Framework) {
 	t.taskID = taskID
 	t.framework = framework
 	t.etcdClient = etcd.NewClient(t.config.EtcdURLs)
+	t.userSeverPort = 10000 + taskID
+
 	//channel init
 	t.stopGrabTaskForEveryEpoch = make(chan bool, 1)
 	t.epochChange = make(chan *mapreduceEvent, 1)
 	t.dataReady = make(chan *mapreduceEvent, 1)
 	t.metaReady = make(chan *mapreduceEvent, 1)
 	t.exitChan = make(chan struct{})
+
 	t.initializeTaskEnv()
 	go t.run()
 }
@@ -75,7 +78,7 @@ func (t *workerTask) run() {
 			return
 
 		case dataReady := <-t.dataReady:
-			go t.processWork(dataReady.ctx, dataReady.fromID, t.workID, dataReady.method, dataReady.output)
+			go t.processWork(dataReady.ctx, dataReady.fromID, dataReady.method, dataReady.output)
 		case <-t.metaReady:
 
 		}
@@ -83,7 +86,7 @@ func (t *workerTask) run() {
 }
 
 func (t *workerTask) startNewUserServer(cmdline []string) {
-	argv := []string{"-port", strconv.FormatUint(10000+t.taskID, 10)}
+	argv := []string{"-port", strconv.FormatUint(t.userSeverPort, 10)}
 	cmd := exec.Command(cmdline[0], argv...)
 	err := cmd.Start()
 	if err != nil {
@@ -108,7 +111,7 @@ func (t *workerTask) getNewReducerUserServer(address string) pb.ReducerClient {
 	return pb.NewReducerClient(conn)
 }
 
-func (t *workerTask) processWork(ctx context.Context, fromID uint64, workID uint64, method string, output proto.Message) {
+func (t *workerTask) processWork(ctx context.Context, fromID uint64, method string, output proto.Message) {
 	resp, ok := output.(*pb.WorkConfigResponse)
 	if !ok {
 		t.logger.Panicf("doDataRead, corruption in proto.Message.")
@@ -134,6 +137,11 @@ func (t *workerTask) processWork(ctx context.Context, fromID uint64, workID uint
 
 	// start user grpc server by cmd line,
 	go t.startNewUserServer(workConfig.UserProgram)
+
+	workID := t.getWorkID()
+	if workID == "non" {
+		t.logger.Fatal("Expect worker possessing a work")
+	}
 
 	// Determined by the work type, start relative processing procedure
 	switch pair["WorkType"] {
@@ -231,12 +239,20 @@ func (t *workerTask) emitKvPairs(userClient pb.MapperClient, str string, value s
 	}
 }
 
-func (t *workerTask) mapperProcedure(ctx context.Context, workID uint64, workConfig WorkConfig, userClient pb.MapperClient) {
+func (t *workerTask) getWorkID() string {
+	requestWorkStatus, err := t.etcdClient.Get(MapreduceTaskStatusPath(t.config.AppName, t.taskID, "workStatus"), false, false)
+	if err != nil {
+		log.Fatal("etcdutil: can not get worker status from etcd")
+	}
+	return requestWorkStatus.Node.Value
+}
+
+func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workConfig WorkConfig, userClient pb.MapperClient) {
 	var i uint64
 	t.mapperWriteCloser = make([]bufio.Writer, 0)
 
 	for i = 0; i < t.config.ReducerNum; i++ {
-		path := workConfig.OutputFilePath[0] + "/" + strconv.FormatUint(i, 10) + "from" + strconv.FormatUint(workID, 10)
+		path := workConfig.OutputFilePath[0] + "/" + strconv.FormatUint(i, 10) + "from" + workID
 		t.logger.Println("Output Path ", path)
 		t.Clean(path)
 		tmpWrite, err := t.config.FilesystemClient.OpenWriteCloser(path)
@@ -281,7 +297,7 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID uint64, workCon
 	t.logger.Println("FileRead finished")
 
 	// notify the master mapper work has been done
-	t.notifyChan <- &mapreduceEvent{ctx: ctx, workID: t.workID, fromID: t.taskID, linkType: "Master", meta: "WorkFinished" + strconv.FormatUint(workID, 10)}
+	t.notifyChan <- &mapreduceEvent{ctx: ctx, fromID: t.taskID, linkType: "Master", meta: "WorkFinished" + workID}
 }
 
 func (t *workerTask) processShuffleKV(str []byte) {
@@ -311,7 +327,7 @@ func (t *workerTask) collectKvPairs(userClient pb.ReducerClient, key string, val
 	}
 }
 
-func (t *workerTask) reducerProcedure(ctx context.Context, workID uint64, workConfig WorkConfig, userClient pb.ReducerClient) {
+func (t *workerTask) reducerProcedure(ctx context.Context, workID string, workConfig WorkConfig, userClient pb.ReducerClient) {
 	for ProcessID := 0; ProcessID < len(workConfig.InputFilePath); ProcessID++ {
 		t.shuffleContainer = make(map[string][]string)
 
@@ -361,7 +377,7 @@ func (t *workerTask) reducerProcedure(ctx context.Context, workID uint64, workCo
 
 	t.collectKvPairs(userClient, "Stop", []string{}, true)
 
-	t.notifyChan <- &mapreduceEvent{ctx: ctx, epoch: t.epoch, linkType: "Master", meta: "ReducerWorkFinished" + strconv.FormatUint(workID, 10)}
+	t.notifyChan <- &mapreduceEvent{ctx: ctx, epoch: t.epoch, linkType: "Master", meta: "ReducerWorkFinished" + workID}
 }
 
 func (t *workerTask) EnterEpoch(ctx context.Context, epoch uint64) {

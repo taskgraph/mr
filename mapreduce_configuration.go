@@ -49,7 +49,6 @@ type mapreduceEvent struct {
 	ctx      context.Context
 	epoch    uint64
 	fromID   uint64
-	workID   uint64
 	linkType string
 	method   string
 	meta     string
