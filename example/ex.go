@@ -51,7 +51,7 @@ func main() {
 		newWork := mapreduce.WorkConfig{}
 		newWork.InputFilePath = []string{inputFile}
 		newWork.OutputFilePath = []string{"mapreducerprocesstemporaryresult"}
-		newWork.UserProgram = []string{"./sample_mapper_server"}
+		newWork.UserProgram = []string{"./sample_mapper_user_program/sample_mapper_server"}
 		newWork.UserServerAddress = ""
 		newWork.WorkType = "Mapper"
 		newWork.SupplyContent = []string{""}

@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -21,28 +22,22 @@ import (
 
 type workerTask struct {
 	framework          taskgraph.Framework
-	taskType           string
 	epoch              uint64
 	logger             *log.Logger
 	taskID             uint64
-	workID             uint64
 	etcdClient         *etcd.Client
 	userSeverPort      uint64
 	mapperWriteCloser  []bufio.Writer
 	reducerWriteCloser bufio.Writer
-	shuffleContainer   map[string][]string
+	shuffleContainer   map[string][]string //store temporary shuffle results
 
 	//channels
 	epochChange               chan *mapreduceEvent
 	dataReady                 chan *mapreduceEvent
 	metaReady                 chan *mapreduceEvent
-	finishedChan              chan *mapreduceEvent
 	notifyChan                chan *mapreduceEvent
 	exitChan                  chan struct{}
 	stopGrabTaskForEveryEpoch chan bool
-
-	//io writer
-	shuffleDepositWriter bufio.Writer
 
 	config MapreduceConfig
 }
@@ -87,9 +82,13 @@ func (t *workerTask) run() {
 	}
 }
 
-func (t *workerTask) startNewUserServer(cmd []string) {
-	// argv := []string{"-port=" + strconv.FormatUint(t.taskID+10000, 10)}
-	// c := exec.Command(cmd[0], argv)
+func (t *workerTask) startNewUserServer(cmdline []string) {
+	argv := []string{"-port", strconv.FormatUint(10000+t.taskID, 10)}
+	cmd := exec.Command(cmdline[0], argv...)
+	err := cmd.Start()
+	if err != nil {
+		log.Fatal(err)
+	}
 
 }
 
@@ -134,9 +133,9 @@ func (t *workerTask) processWork(ctx context.Context, fromID uint64, workID uint
 	}
 
 	// start user grpc server by cmd line,
-	t.startNewUserServer(workConfig.UserProgram)
+	go t.startNewUserServer(workConfig.UserProgram)
 
-	// start relative processing procedure
+	// Determined by the work type, start relative processing procedure
 	switch pair["WorkType"] {
 	case "Mapper":
 		userClient := t.getNewMapperUserServer(workConfig.UserServerAddress)
