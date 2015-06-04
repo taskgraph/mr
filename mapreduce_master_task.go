@@ -53,6 +53,10 @@ func (t *masterTask) Init(taskID uint64, framework taskgraph.Framework) {
 	t.dataReady = make(chan *mapreduceEvent, t.config.NodeNum)
 	t.metaReady = make(chan *mapreduceEvent, t.config.NodeNum)
 	t.notifyChanArr = make([]chan WorkConfig, t.config.NodeNum)
+	for i := uint64(0); i < t.config.NodeNum; i++ {
+		notifyChan := make(chan WorkConfig, 1)
+		t.notifyChanArr = append(t.notifyChanArr, notifyChan)
+	}
 	t.finishedWorkNum = 0
 	t.workDone = make(chan bool, 1)
 	// for i := range t.notifyChanArr {
@@ -93,8 +97,10 @@ func (t *masterTask) run() {
 		case requestWorker := <-t.getWork:
 			t.assignWork(requestWorker)
 		case metaReady := <-t.metaReady:
+			t.logger.Println("meta ready", metaReady)
 			go t.processMessage(metaReady.ctx, metaReady.fromID, metaReady.linkType, metaReady.meta)
 		case <-t.exitChan:
+			t.logger.Println("receive exit signal")
 			return
 
 		}
@@ -104,10 +110,12 @@ func (t *masterTask) run() {
 // grpc interface providing worker invoke to grab new work
 // implements as a serialize program by channel.
 func (t *masterTask) GetWork(in *pb.WorkRequest, stream pb.Master_GetWorkServer) error {
+	t.logger.Println("master : receive the request of task ", in.TaskID)
 	t.getWork <- in.TaskID
 	for {
 		select {
 		case workConfig := <-t.notifyChanArr[in.TaskID]:
+			t.logger.Printf("master : task %d get the work config\n", in.TaskID)
 			key := []string{"InputFilePath", "OutputFilePath", "UserServerAddress", "UserProgram", "WorkType", "SupplyContent"}
 			val := []string{
 				strings.Join(workConfig.InputFilePath, delim),
@@ -117,7 +125,10 @@ func (t *masterTask) GetWork(in *pb.WorkRequest, stream pb.Master_GetWorkServer)
 				workConfig.WorkType,
 				strings.Join(workConfig.SupplyContent, delim),
 			}
-			stream.Send(&pb.WorkConfigResponse{Key: key, Value: val})
+			if err := stream.Send(&pb.WorkConfigResponse{Key: key, Value: val}); err != nil {
+				t.logger.Fatal(err)
+				return err
+			}
 			return nil
 		case <-t.workDone:
 			return nil
@@ -143,7 +154,7 @@ func (t *masterTask) updateNodeStatus() {
 }
 
 func (t *masterTask) assignWork(taskID uint64) {
-
+	t.logger.Println("master : in assign work procedure for task ", taskID)
 	for {
 
 		// check worker work status
@@ -152,20 +163,20 @@ func (t *masterTask) assignWork(taskID uint64) {
 			log.Fatal("etcdutil: can not get worker status from etcd")
 		}
 		if requestWorkStatus.Node.Value != "non" {
+			t.logger.Printf("master : task %d already possesses work %s, recovering... \n", taskID, requestWorkStatus.Node.Value)
 			workID, _ := strconv.Atoi(requestWorkStatus.Node.Value)
-
 			t.notifyChanArr[taskID] <- t.config.WorkDir[workID]
 			return
 		}
 
 		// update master overall work state
 		t.updateNodeStatus()
-
+		t.logger.Println("workNum", t.currentWorkNum, "totalWork", t.totalWork)
 		if t.currentWorkNum >= t.totalWork {
 			close(t.workDone)
 			return
 		}
-
+		t.logger.Printf("master : currentWork %d, totalWork %d, %s\n", t.currentWorkNum, t.totalWork, requestWorkStatus.Node.Value)
 		// try grab work by compareAndSwap op
 		// if sucessed, transfre work config to pointed task.
 		_, err = t.etcdClient.CompareAndSwap(
@@ -181,6 +192,9 @@ func (t *masterTask) assignWork(taskID uint64) {
 				log.Fatal(err)
 			}
 		} else {
+			t.logger.Printf("master : task %d possesses work %d, starting... \n", taskID, t.currentWorkNum)
+			t.etcdClient.Set(MapreduceTaskStatusPath(t.config.AppName, taskID, "workStatus"), strconv.FormatUint(t.currentWorkNum, 10), 0)
+
 			t.notifyChanArr[taskID] <- t.config.WorkDir[t.currentWorkNum]
 			return
 		}
@@ -189,16 +203,19 @@ func (t *masterTask) assignWork(taskID uint64) {
 }
 
 func (t *masterTask) processMessage(ctx context.Context, fromID uint64, linkType string, meta string) {
+	t.logger.Println(fromID, meta)
 	matchWork, _ := regexp.MatchString("^WorkFinished[0-9]+$", meta)
 	switch {
 	case matchWork:
 		t.finishedWorkNum++
 		_, err := t.etcdClient.Set(MapreduceTaskStatusPath(t.config.AppName, fromID, "workStatus"), "non", 0)
+		t.logger.Println(meta)
 		if err != nil {
 			t.logger.Fatalf("Set work status failed")
 		}
-
+		t.logger.Println(t.totalWork, t.finishedWorkNum)
 		if t.finishedWorkNum >= t.totalWork {
+			t.logger.Println("in Exit")
 			t.Exit()
 			return
 		}
@@ -206,6 +223,7 @@ func (t *masterTask) processMessage(ctx context.Context, fromID uint64, linkType
 }
 
 func (t *masterTask) Exit() {
+	t.logger.Println("in exit function")
 	close(t.exitChan)
 }
 

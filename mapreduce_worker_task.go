@@ -59,6 +59,7 @@ func (t *workerTask) Init(taskID uint64, framework taskgraph.Framework) {
 	t.epochChange = make(chan *mapreduceEvent, 1)
 	t.dataReady = make(chan *mapreduceEvent, 1)
 	t.metaReady = make(chan *mapreduceEvent, 1)
+	t.notifyChan = make(chan *mapreduceEvent, 1)
 	t.exitChan = make(chan struct{})
 
 	t.initializeTaskEnv()
@@ -72,6 +73,7 @@ func (t *workerTask) run() {
 			go t.doEnterEpoch(ec.ctx, ec.epoch)
 
 		case notify := <-t.notifyChan:
+			t.logger.Println(notify)
 			t.framework.FlagMeta(notify.ctx, notify.linkType, notify.meta)
 
 		case <-t.exitChan:
@@ -96,6 +98,7 @@ func (t *workerTask) startNewUserServer(cmdline []string) {
 }
 
 func (t *workerTask) getNewMapperUserServer(address string) pb.MapperClient {
+	t.logger.Println(address + fmt.Sprintf(":%d", t.userSeverPort))
 	conn, err := grpc.Dial(address + fmt.Sprintf(":%d", t.userSeverPort))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
@@ -112,11 +115,16 @@ func (t *workerTask) getNewReducerUserServer(address string) pb.ReducerClient {
 }
 
 func (t *workerTask) processWork(ctx context.Context, fromID uint64, method string, output proto.Message) {
+
 	resp, ok := output.(*pb.WorkConfigResponse)
+	t.logger.Println(resp)
 	if !ok {
 		t.logger.Panicf("doDataRead, corruption in proto.Message.")
 	}
-	pair := make(map[string]string)
+	if resp == nil {
+		return
+	}
+
 	workConfig := WorkConfig{}
 	for i := range resp.Key {
 		switch resp.Key[i] {
@@ -142,9 +150,10 @@ func (t *workerTask) processWork(ctx context.Context, fromID uint64, method stri
 	if workID == "non" {
 		t.logger.Fatal("Expect worker possessing a work")
 	}
-
+	t.logger.Println("begin process work", workConfig)
+	t.logger.Println(workConfig.WorkType)
 	// Determined by the work type, start relative processing procedure
-	switch pair["WorkType"] {
+	switch workConfig.WorkType {
 	case "Mapper":
 		userClient := t.getNewMapperUserServer(workConfig.UserServerAddress)
 		go t.mapperProcedure(ctx, workID, workConfig, userClient)
@@ -166,6 +175,7 @@ func (t *workerTask) initializeTaskEnv() error {
 }
 
 func (t *workerTask) datarequestForWork(ctx context.Context, method string) {
+	t.logger.Println("data request")
 	master := t.framework.GetTopology()["Master"].GetNeighbors(t.epoch)
 
 	for _, node := range master {
@@ -174,18 +184,22 @@ func (t *workerTask) datarequestForWork(ctx context.Context, method string) {
 }
 
 func (t *workerTask) grabWork(ctx context.Context, method string, stop chan bool) {
+	t.logger.Println("in grab work")
 	t.datarequestForWork(ctx, method)
 
 	// afterwards, watch etcd worker attribute "workStatus"
 	// if exist "set' operation, and the value is "non"
 	receiver := make(chan *etcd.Response, 1)
-	go t.etcdClient.Watch(MapreduceTaskStatusPath(t.config.AppName, t.taskID, "workStatus"), 0, false, receiver, stop)
+	t.logger.Println(MapreduceTaskStatusPath(t.config.AppName, t.taskID, "workStatus"))
+	go t.etcdClient.Watch(MapreduceTaskStatusPath(t.config.AppName, t.taskID, "workStatus"), 0, true, receiver, stop)
 	for resp := range receiver {
 		if resp.Action != "set" {
 			continue
 		}
 		if resp.Node.Value == "non" {
 			t.datarequestForWork(ctx, method)
+		} else {
+			continue
 		}
 	}
 }
@@ -248,6 +262,7 @@ func (t *workerTask) getWorkID() string {
 }
 
 func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workConfig WorkConfig, userClient pb.MapperClient) {
+	t.logger.Println("In mapper procedure")
 	var i uint64
 	t.mapperWriteCloser = make([]bufio.Writer, 0)
 
@@ -288,7 +303,7 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workCon
 	}
 
 	// stop user program grpc client
-	t.emitKvPairs(userClient, "stop", "stop", true)
+	t.emitKvPairs(userClient, "Stop", "Stop", true)
 
 	//flush output result
 	for i = 0; i < t.config.ReducerNum; i++ {
@@ -389,7 +404,7 @@ func (t *workerTask) doEnterEpoch(ctx context.Context, epoch uint64) {
 	// start a new one
 	close(t.stopGrabTaskForEveryEpoch)
 	t.stopGrabTaskForEveryEpoch = make(chan bool, 1)
-	t.grabWork(ctx, "/proto.Master/GetWork", t.stopGrabTaskForEveryEpoch)
+	go t.grabWork(ctx, "/proto.Master/GetWork", t.stopGrabTaskForEveryEpoch)
 }
 
 func (t *workerTask) Exit() {
@@ -405,7 +420,11 @@ func (t *workerTask) CreateServer() *grpc.Server {
 }
 
 func (t *workerTask) CreateOutputMessage(method string) proto.Message {
-	return nil
+	switch method {
+	case "/proto.Master/GetWork":
+		return new(pb.WorkConfigResponse)
+	}
+	panic("")
 }
 
 func (t *workerTask) DataReady(ctx context.Context, fromID uint64, method string, output proto.Message) {

@@ -20,6 +20,7 @@ func main() {
 	programType := flag.String("type", "", "(c) controller, (m) mapper, (s) shuffle, or (r) reducer")
 	job := flag.String("job", "mapreduce+mapper", "job name")
 	mapperNum := flag.Int("mapperNum", 5, "mapperNum")
+	nodeNum := flag.Int("nodeNum", 1, "nodeNum")
 	reducerNum := flag.Int("reducerNum", 3, "reducerNum")
 	azureAccountName := flag.String("azureAccountName", "spluto", "azureAccountName")
 	azureAccountKey := flag.String("azureAccountKey", "", "azureAccountKey")
@@ -51,8 +52,8 @@ func main() {
 		newWork := mapreduce.WorkConfig{}
 		newWork.InputFilePath = []string{inputFile}
 		newWork.OutputFilePath = []string{"mapreducerprocesstemporaryresult"}
-		newWork.UserProgram = []string{"./sample_mapper_user_program/sample_mapper_server"}
-		newWork.UserServerAddress = ""
+		newWork.UserProgram = []string{"../sample_mapper_user_program/sample_mapper_server"}
+		newWork.UserServerAddress = "localhost"
 		newWork.WorkType = "Mapper"
 		newWork.SupplyContent = []string{""}
 		mapperWorkDir = append(mapperWorkDir, newWork)
@@ -67,7 +68,7 @@ func main() {
 		MapperNum:  uint64(*mapperNum),
 		ReducerNum: uint64(*reducerNum),
 		WorkNum:    uint64(*mapperNum),
-		NodeNum:    uint64(*mapperNum),
+		NodeNum:    uint64(*nodeNum),
 
 		AppName:          *job,
 		EtcdURLs:         etcdURLs,
@@ -75,9 +76,9 @@ func main() {
 		WorkDir:          mapperWorkDir,
 	}
 
-	ntask := *mapperNum
-	topoMaster := topo.NewFullTopologyOfMaster(uint64(*mapperNum) + 1)
-	topoNeighbors := topo.NewFullTopologyOfNeighbor(uint64(*mapperNum) + 1)
+	ntask := uint64(*nodeNum) + 1
+	topoMaster := topo.NewFullTopologyOfMaster(uint64(*nodeNum) + 1)
+	topoNeighbors := topo.NewFullTopologyOfNeighbor(uint64(*nodeNum) + 1)
 
 	switch *programType {
 	case "c":
