@@ -100,7 +100,7 @@ func (t *masterTask) run() {
 			t.logger.Println("meta ready", metaReady)
 			go t.processMessage(metaReady.ctx, metaReady.fromID, metaReady.linkType, metaReady.meta)
 		case <-t.exitChan:
-			t.logger.Println("receive exit signal")
+
 			return
 
 		}
@@ -223,8 +223,7 @@ func (t *masterTask) processMessage(ctx context.Context, fromID uint64, linkType
 }
 
 func (t *masterTask) Exit() {
-	t.logger.Println("in exit function")
-	close(t.exitChan)
+	t.framework.ShutdownJob()
 }
 
 func (t *masterTask) MetaReady(ctx context.Context, fromID uint64, linkType, meta string) {
