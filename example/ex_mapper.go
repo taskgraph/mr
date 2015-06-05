@@ -24,7 +24,7 @@ func main() {
 	reducerNum := flag.Int("reducerNum", 3, "reducerNum")
 	azureAccountName := flag.String("azureAccountName", "spluto", "azureAccountName")
 	azureAccountKey := flag.String("azureAccountKey", "", "azureAccountKey")
-	outputDir := flag.String("outputDir", "0newmapreducepathformapreduce000", "outputDir")
+	// outputDir := flag.String("outputDir", "0newmapreducepathformapreduce000", "outputDir")
 
 	flag.Parse()
 	if *job == "" {
@@ -45,19 +45,18 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
-	reducerWorkDir := make([]mapreduce.WorkConfig, 0)
-	for i := 0; i < *reducerNum; i++ {
+	mapperWorkDir := make([]mapreduce.WorkConfig, 0)
+
+	for inputM := 1; inputM <= *mapperNum; inputM++ {
+		inputFile := "testforcomplexmapreduceframework/textForExamination" + strconv.Itoa(inputM)
 		newWork := mapreduce.WorkConfig{}
-		inputFile := "mapreducerprocesstemporaryresult"
 		newWork.InputFilePath = []string{inputFile}
-
-		newWork.OutputFilePath = []string{*outputDir + "/reducerOutput" + strconv.Itoa(i)}
-
-		newWork.UserProgram = []string{"../sample_reducer_user_program/sample_reducer_server"}
+		newWork.OutputFilePath = []string{"mapreducerprocesstemporaryresult"}
+		newWork.UserProgram = []string{"../sample_mapper_user_program/sample_mapper_server"}
 		newWork.UserServerAddress = "localhost"
-		newWork.WorkType = "Reducer"
-		newWork.SupplyContent = []string{strconv.Itoa(*mapperNum) + " " + strconv.Itoa(i)}
-		reducerWorkDir = append(reducerWorkDir, newWork)
+		newWork.WorkType = "Mapper"
+		newWork.SupplyContent = []string{""}
+		mapperWorkDir = append(mapperWorkDir, newWork)
 	}
 
 	var ll *log.Logger
@@ -65,16 +64,16 @@ func main() {
 
 	etcdURLs := []string{"http://localhost:4001"}
 
-	reducerConfig := mapreduce.MapreduceConfig{
+	mapperConfig := mapreduce.MapreduceConfig{
 		MapperNum:  uint64(*mapperNum),
 		ReducerNum: uint64(*reducerNum),
-		WorkNum:    uint64(*reducerNum),
+		WorkNum:    uint64(*mapperNum),
 		NodeNum:    uint64(*nodeNum),
 
 		AppName:          *job,
 		EtcdURLs:         etcdURLs,
 		FilesystemClient: azureClient,
-		WorkDir:          reducerWorkDir,
+		WorkDir:          mapperWorkDir,
 	}
 
 	ntask := uint64(*nodeNum) + 1
@@ -84,14 +83,14 @@ func main() {
 	switch *programType {
 	case "c":
 		log.Printf("controller")
-		controller := controller.New(reducerConfig.AppName, etcd.NewClient(reducerConfig.EtcdURLs), uint64(ntask), []string{"Prefix", "Suffix", "Master", "Slave"})
+		controller := controller.New(mapperConfig.AppName, etcd.NewClient(mapperConfig.EtcdURLs), uint64(ntask), []string{"Prefix", "Suffix", "Master", "Slave"})
 		controller.Start()
 		controller.WaitForJobDone()
 
 	case "t":
-		log.Printf("reducer task")
-		bootstrap := framework.NewBootStrap(reducerConfig.AppName, reducerConfig.EtcdURLs, createListener(), ll)
-		taskBuilder := &mapreduce.MapreduceTaskBuilder{MapreduceConfig: reducerConfig}
+		log.Printf("mapper task")
+		bootstrap := framework.NewBootStrap(mapperConfig.AppName, mapperConfig.EtcdURLs, createListener(), ll)
+		taskBuilder := &mapreduce.MapreduceTaskBuilder{MapreduceConfig: mapperConfig}
 		bootstrap.SetTaskBuilder(taskBuilder)
 		bootstrap.AddLinkage("Master", topoMaster)
 		bootstrap.AddLinkage("Neighbors", topoNeighbors)

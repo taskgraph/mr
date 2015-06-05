@@ -219,6 +219,7 @@ func (t *workerTask) Emit(key, val string) {
 	if err != nil {
 		t.logger.Fatalf("json marshal error : ", err)
 	}
+	t.logger.Println(toShuffle, key, val)
 	t.mapperWriteCloser[toShuffle].Write(data)
 }
 
