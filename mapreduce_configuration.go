@@ -16,7 +16,7 @@ type MapreduceConfig struct {
 	ShuffleNum uint64
 	ReducerNum uint64
 	WorkNum    uint64
-	NodeNum    uint64
+	WorkerNum  uint64
 
 	//store the work, appname, and etcdurls
 	FilesystemClient filesystem.Client

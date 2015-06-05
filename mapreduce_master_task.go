@@ -50,10 +50,10 @@ func (t *masterTask) Init(taskID uint64, framework taskgraph.Framework) {
 	t.etcdClient = etcd.NewClient(t.config.EtcdURLs)
 	t.epochChange = make(chan *mapreduceEvent, 1)
 	t.getWork = make(chan uint64, 1)
-	t.dataReady = make(chan *mapreduceEvent, t.config.NodeNum)
-	t.metaReady = make(chan *mapreduceEvent, t.config.NodeNum)
-	t.notifyChanArr = make([]chan WorkConfig, t.config.NodeNum)
-	for i := uint64(0); i < t.config.NodeNum; i++ {
+	t.dataReady = make(chan *mapreduceEvent, t.config.WorkerNum)
+	t.metaReady = make(chan *mapreduceEvent, t.config.WorkerNum)
+	t.notifyChanArr = make([]chan WorkConfig, t.config.WorkerNum)
+	for i := uint64(0); i <= t.config.WorkerNum; i++ {
 		notifyChan := make(chan WorkConfig, 1)
 		t.notifyChanArr = append(t.notifyChanArr, notifyChan)
 	}

@@ -12,6 +12,8 @@ echo $azureAccountKey
 sleep 2
 ./ex_mapper -job="mapper test" -type=t -azureAccountKey=$azureAccountKey > www1.txt &
 ./ex_mapper -job="mapper test" -type=t -azureAccountKey=$azureAccountKey > www2.txt &
+./ex_mapper -job="mapper test" -type=t -azureAccountKey=$azureAccountKey > www3.txt &
+./ex_mapper -job="mapper test" -type=t -azureAccountKey=$azureAccountKey > www4.txt &
 # ./ex -job="mapreduce test" -type=t -azureAccountKey=$azureAccountKey > www3.txt &
 # ./ex -job="mapreduce test" -type=t -azureAccountKey=$azureAccountKey > www4.txt &
 # ./ex -job="mapreduce test" -type=t -azureAccountKey=$azureAccountKey > www5.txt &

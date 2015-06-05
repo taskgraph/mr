@@ -20,7 +20,7 @@ func main() {
 	programType := flag.String("type", "", "(c) controller, (m) mapper, (s) shuffle, or (r) reducer")
 	job := flag.String("job", "mapreduce+mapper", "job name")
 	mapperNum := flag.Int("mapperNum", 5, "mapperNum")
-	nodeNum := flag.Int("nodeNum", 1, "nodeNum")
+	WorkerNum := flag.Int("WorkerNum", 3, "WorkerNum")
 	reducerNum := flag.Int("reducerNum", 3, "reducerNum")
 	azureAccountName := flag.String("azureAccountName", "spluto", "azureAccountName")
 	azureAccountKey := flag.String("azureAccountKey", "", "azureAccountKey")
@@ -69,7 +69,7 @@ func main() {
 		MapperNum:  uint64(*mapperNum),
 		ReducerNum: uint64(*reducerNum),
 		WorkNum:    uint64(*reducerNum),
-		NodeNum:    uint64(*nodeNum),
+		WorkerNum:  uint64(*WorkerNum),
 
 		AppName:          *job,
 		EtcdURLs:         etcdURLs,
@@ -77,9 +77,9 @@ func main() {
 		WorkDir:          reducerWorkDir,
 	}
 
-	ntask := uint64(*nodeNum) + 1
-	topoMaster := topo.NewFullTopologyOfMaster(uint64(*nodeNum) + 1)
-	topoNeighbors := topo.NewFullTopologyOfNeighbor(uint64(*nodeNum) + 1)
+	ntask := uint64(*WorkerNum) + 1
+	topoMaster := topo.NewFullTopologyOfMaster(uint64(*WorkerNum) + 1)
+	topoNeighbors := topo.NewFullTopologyOfNeighbor(uint64(*WorkerNum) + 1)
 
 	switch *programType {
 	case "c":
