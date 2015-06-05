@@ -37,7 +37,7 @@ type masterTask struct {
 	finishedChan  chan *mapreduceEvent
 	notifyChanArr []chan WorkConfig
 	exitChan      chan struct{}
-	workDone      chan bool
+	workDone      []chan bool
 
 	config MapreduceConfig
 }
@@ -52,13 +52,15 @@ func (t *masterTask) Init(taskID uint64, framework taskgraph.Framework) {
 	t.getWork = make(chan uint64, 1)
 	t.dataReady = make(chan *mapreduceEvent, t.config.WorkerNum)
 	t.metaReady = make(chan *mapreduceEvent, t.config.WorkerNum)
-	t.notifyChanArr = make([]chan WorkConfig, t.config.WorkerNum)
+	t.notifyChanArr = make([]chan WorkConfig, t.config.WorkerNum+1)
+	t.workDone = make([]chan bool, t.config.WorkerNum+1)
 	for i := uint64(0); i <= t.config.WorkerNum; i++ {
-		notifyChan := make(chan WorkConfig, 1)
-		t.notifyChanArr = append(t.notifyChanArr, notifyChan)
+		t.notifyChanArr[i] = make(chan WorkConfig, 1)
+		t.workDone[i] = make(chan bool, 1)
 	}
+
 	t.finishedWorkNum = 0
-	t.workDone = make(chan bool, 1)
+
 	// for i := range t.notifyChanArr {
 	// 	t.notifyChanArr[i] = make(bool, 1)
 
@@ -130,14 +132,14 @@ func (t *masterTask) GetWork(in *pb.WorkRequest, stream pb.Master_GetWorkServer)
 				return err
 			}
 			return nil
-		case <-t.workDone:
+		case <-t.workDone[in.TaskID]:
 			return nil
 		}
 	}
 	return nil
 }
 
-func (t *masterTask) updateNodeStatus() {
+func (t *masterTask) updateMasterStatus() {
 
 	request, err := t.etcdClient.Get(MapreduceTaskStatusPath(t.config.AppName, 0, "currentWorkNum"), false, false)
 	if err != nil {
@@ -170,10 +172,10 @@ func (t *masterTask) assignWork(taskID uint64) {
 		}
 
 		// update master overall work state
-		t.updateNodeStatus()
+		t.updateMasterStatus()
 		t.logger.Println("workNum", t.currentWorkNum, "totalWork", t.totalWork)
 		if t.currentWorkNum >= t.totalWork {
-			close(t.workDone)
+			close(t.workDone[taskID])
 			return
 		}
 		t.logger.Printf("master : currentWork %d, totalWork %d, %s\n", t.currentWorkNum, t.totalWork, requestWorkStatus.Node.Value)
@@ -194,7 +196,7 @@ func (t *masterTask) assignWork(taskID uint64) {
 		} else {
 			t.logger.Printf("master : task %d possesses work %d, starting... \n", taskID, t.currentWorkNum)
 			t.etcdClient.Set(MapreduceTaskStatusPath(t.config.AppName, taskID, "workStatus"), strconv.FormatUint(t.currentWorkNum, 10), 0)
-
+			t.logger.Println("to channel", taskID, t.notifyChanArr[taskID])
 			t.notifyChanArr[taskID] <- t.config.WorkDir[t.currentWorkNum]
 			return
 		}

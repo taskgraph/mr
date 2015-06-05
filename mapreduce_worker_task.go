@@ -73,7 +73,6 @@ func (t *workerTask) run() {
 			go t.doEnterEpoch(ec.ctx, ec.epoch)
 
 		case notify := <-t.notifyChan:
-			t.logger.Println(notify)
 			t.framework.FlagMeta(notify.ctx, notify.linkType, notify.meta)
 
 		case <-t.exitChan:
@@ -124,6 +123,11 @@ func (t *workerTask) processWork(ctx context.Context, fromID uint64, method stri
 	if resp == nil {
 		return
 	}
+	workID := t.getWorkID()
+	if workID == "non" {
+		t.logger.Println("Expect worker possessing a work")
+		return
+	}
 
 	workConfig := WorkConfig{}
 	for i := range resp.Key {
@@ -146,10 +150,6 @@ func (t *workerTask) processWork(ctx context.Context, fromID uint64, method stri
 	// start user grpc server by cmd line,
 	go t.startNewUserServer(workConfig.UserProgram)
 
-	workID := t.getWorkID()
-	if workID == "non" {
-		t.logger.Fatal("Expect worker possessing a work")
-	}
 	t.logger.Println("begin process work", workConfig)
 	t.logger.Println(workConfig.WorkType)
 	// Determined by the work type, start relative processing procedure
@@ -219,7 +219,6 @@ func (t *workerTask) Emit(key, val string) {
 	if err != nil {
 		t.logger.Fatalf("json marshal error : ", err)
 	}
-	t.logger.Println(toShuffle, key, val)
 	t.mapperWriteCloser[toShuffle].Write(data)
 }
 
