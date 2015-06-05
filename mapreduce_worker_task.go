@@ -272,7 +272,7 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workCon
 		t.Clean(path)
 		tmpWrite, err := t.config.FilesystemClient.OpenWriteCloser(path)
 		if err != nil {
-			t.logger.Fatalf("MapReduce : get mapreduce filesystem client writer failed, ", err)
+			t.logger.Printf("MapReduce : get mapreduce filesystem client writer failed, ", err)
 		}
 		t.mapperWriteCloser = append(t.mapperWriteCloser, *bufio.NewWriterSize(tmpWrite, t.config.WriterBufferSize))
 	}
@@ -281,7 +281,7 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workCon
 	for readFileID := 0; readFileID < len(workConfig.InputFilePath); readFileID++ {
 		mapperReaderCloser, err := t.config.FilesystemClient.OpenReadCloser(workConfig.InputFilePath[readFileID])
 		if err != nil {
-			t.logger.Fatalf("MapReduce : get mapreduce filesystem client reader failed, ", err)
+			t.logger.Printf("MapReduce : get mapreduce filesystem client reader failed, ", err)
 		}
 
 		var str string
@@ -352,12 +352,16 @@ func (t *workerTask) reducerProcedure(ctx context.Context, workID string, workCo
 		if err != nil {
 			t.logger.Fatalf("Failed to get argv mapperWorkSum : %v", err)
 		}
-
+		t.logger.Println(workConfig.InputFilePath)
+		t.logger.Println(workConfig.OutputFilePath)
 		for i := uint64(0); i < mapperWorkSum; i++ {
-			shufflePath := workConfig.InputFilePath[i] + "/" + arg[1] + "from" + strconv.FormatUint(i, 10)
+			shufflePath := workConfig.InputFilePath[0] + "/" + arg[1] + "from" + strconv.FormatUint(i, 10)
 			shuffleReadCloser, err := t.config.FilesystemClient.OpenReadCloser(shufflePath)
 			t.logger.Println("get shuffle data from ", shufflePath)
 			if err != nil {
+				if strings.Contains(err.Error(), "The specified blob does not exist") {
+					continue
+				}
 				t.logger.Fatalf("MapReduce : get azure storage client failed, ", err)
 			}
 			bufioReader := bufio.NewReaderSize(shuffleReadCloser, t.config.ReaderBufferSize)
@@ -374,10 +378,10 @@ func (t *workerTask) reducerProcedure(ctx context.Context, workID string, workCo
 				t.processShuffleKV(str)
 			}
 		}
+		reducerOutputPath := workConfig.OutputFilePath[0]
+		t.Clean(reducerOutputPath)
 
-		t.Clean(workConfig.OutputFilePath[ProcessID])
-
-		reducerWriteCloser, err := t.config.FilesystemClient.OpenWriteCloser(workConfig.OutputFilePath[ProcessID])
+		reducerWriteCloser, err := t.config.FilesystemClient.OpenWriteCloser(reducerOutputPath)
 		if err != nil {
 			t.logger.Fatalf("MapReduce : get reducer writer error, %v", err)
 		}
@@ -391,8 +395,12 @@ func (t *workerTask) reducerProcedure(ctx context.Context, workID string, workCo
 	}
 
 	t.collectKvPairs(userClient, "Stop", []string{}, true)
-
-	t.notifyChan <- &mapreduceEvent{ctx: ctx, epoch: t.epoch, linkType: "Master", meta: "ReducerWorkFinished" + workID}
+	t.logger.Println("finshed reducer")
+	t.notifyChan <- &mapreduceEvent{ctx: ctx, epoch: t.epoch, linkType: "Master", meta: "WorkFinished" + workID}
+	// for i := uint64(0); i < mapperWorkSum; i++ {
+	// 	shufflePath := workConfig.InputFilePath[i] + "/" + arg[1] + "from" + strconv.FormatUint(i, 10)
+	// 	t.Clean(shufflePath)
+	// }
 }
 
 func (t *workerTask) EnterEpoch(ctx context.Context, epoch uint64) {
