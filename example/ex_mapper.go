@@ -7,7 +7,7 @@ import (
 	"os"
 	"strconv"
 
-	mapreduce "../../mr"
+	mapreduce "../../mr/interface"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/taskgraph/taskgraph/controller"
 	"github.com/taskgraph/taskgraph/example/topo"

@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	pb "./proto"
+	pb "../proto"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/protobuf/proto"
 	"github.com/taskgraph/taskgraph"
