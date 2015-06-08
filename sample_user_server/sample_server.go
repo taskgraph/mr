@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"flag"
@@ -62,7 +62,7 @@ func (*server) GetEmitResult(KvPair *pb.MapperRequest, stream pb.Mapper_GetEmitR
 	return nil
 }
 
-func main() {
+func Main() {
 	flag.Parse()
 	if *tp == "" {
 		log.Fatalln("Need a server type m/r")
