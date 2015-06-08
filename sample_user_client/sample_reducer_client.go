@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 
-	pb "../proto"
+	pb "github.com/plutoshe/mr/proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
