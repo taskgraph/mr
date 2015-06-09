@@ -20,7 +20,7 @@ func main() {
 	programType := flag.String("type", "", "(c) controller, (m) mapper, (s) shuffle, or (r) reducer")
 	job := flag.String("job", "mapreduce+mapper", "job name")
 	mapperNum := flag.Int("mapperNum", 5, "mapperNum")
-	WorkerNum := flag.Int("WorkerNum", 3, "WorkerNum")
+	WorkerNum := flag.Int("WorkerNum", 1, "WorkerNum")
 	reducerNum := flag.Int("reducerNum", 3, "reducerNum")
 	azureAccountName := flag.String("azureAccountName", "spluto", "azureAccountName")
 	azureAccountKey := flag.String("azureAccountKey", "", "azureAccountKey")
@@ -52,8 +52,13 @@ func main() {
 		newWork := mapreduce.WorkConfig{}
 		newWork.InputFilePath = []string{inputFile}
 		newWork.OutputFilePath = []string{"mapreducerprocesstemporaryresult"}
-		newWork.UserProgram = []string{"../sample_mapper_user_program/sample_mapper_server"}
-		newWork.UserServerAddress = "localhost"
+		newWork.UserProgram = []string{
+			"docker stop mr" + strconv.Itoa(inputM),
+			"docker rm mr" + strconv.Itoa(inputM),
+			"docker run -d -p " + strconv.Itoa(20000+inputM) + ":10000 --name mr" + strconv.Itoa(inputM) + " plutoshe/mr:mr-new go run main.go -type m",
+		}
+		//../sample_mapper_user_program/sample_mapper_server
+		newWork.UserServerAddress = "192.168.59.103:" + strconv.Itoa(20000+inputM)
 		newWork.WorkType = "Mapper"
 		newWork.SupplyContent = []string{""}
 		mapperWorkDir = append(mapperWorkDir, newWork)

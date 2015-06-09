@@ -3,7 +3,6 @@ package mapreduce
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"hash/fnv"
 	"io"
 	"log"
@@ -87,28 +86,42 @@ func (t *workerTask) run() {
 }
 
 func (t *workerTask) startNewUserServer(cmdline []string) {
-	argv := []string{"-port", strconv.FormatUint(t.userSeverPort, 10)}
-	cmd := exec.Command(cmdline[0], argv...)
-	err := cmd.Start()
-	if err != nil {
-		log.Fatal(err)
+	// output, err := exec.Command("echo $PATH").Output()
+	// log.Println(string(output), err)
+	// argv := []string{"-port", strconv.FormatUint(t.userSeverPort, 10)}
+	for i := 0; i < len(cmdline); i++ {
+		parts := strings.Fields(cmdline[i])
+		head := parts[0]
+		parts = parts[1:len(parts)]
+		cmd := exec.Command(head, parts...)
+		if head == "docker" && parts[0] == "run" {
+			err := cmd.Start()
+			if err != nil {
+				log.Println(err)
+			}
+		} else {
+			err := cmd.Run()
+			if err != nil {
+				log.Println(err)
+			}
+		}
 	}
 
 }
 
 func (t *workerTask) getNewMapperUserServer(address string) pb.MapperClient {
-	t.logger.Println(address + fmt.Sprintf(":%d", t.userSeverPort))
-	conn, err := grpc.Dial(address + fmt.Sprintf(":%d", t.userSeverPort))
+	conn, err := grpc.Dial(address)
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		t.logger.Fatalf("did not connect: %v", err)
 	}
 	return pb.NewMapperClient(conn)
 }
 
 func (t *workerTask) getNewReducerUserServer(address string) pb.ReducerClient {
-	conn, err := grpc.Dial(address + fmt.Sprintf(":%d", t.userSeverPort))
+	//  + fmt.Sprintf(":%d", t.userSeverPort)
+	conn, err := grpc.Dial(address)
 	if err != nil {
-		log.Fatalf("did not connect: %v", err)
+		t.logger.Fatalf("did not connect: %v", err)
 	}
 	return pb.NewReducerClient(conn)
 }
@@ -229,7 +242,7 @@ func (t *workerTask) Collect(key string, val string) {
 func (t *workerTask) Clean(path string) {
 	err := t.config.FilesystemClient.Remove(path)
 	if err != nil {
-		t.logger.Fatal(err)
+		t.logger.Println(err)
 	}
 }
 
@@ -272,7 +285,7 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workCon
 		t.Clean(path)
 		tmpWrite, err := t.config.FilesystemClient.OpenWriteCloser(path)
 		if err != nil {
-			t.logger.Printf("MapReduce : get mapreduce filesystem client writer failed, ", err)
+			t.logger.Fatalf("MapReduce : get mapreduce filesystem client writer failed, ", err)
 		}
 		t.mapperWriteCloser = append(t.mapperWriteCloser, *bufio.NewWriterSize(tmpWrite, t.config.WriterBufferSize))
 	}
