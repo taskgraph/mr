@@ -52,13 +52,17 @@ func main() {
 		newWork := mapreduce.WorkConfig{}
 		newWork.InputFilePath = []string{inputFile}
 		newWork.OutputFilePath = []string{"mapreducerprocesstemporaryresult"}
+		// newWork.UserProgram = []string{
+		// 	"docker stop mr" + strconv.Itoa(inputM),
+		// 	"docker rm mr" + strconv.Itoa(inputM),
+		// 	"docker run -d -p " + strconv.Itoa(20000+inputM) + ":10000 --name mr" + strconv.Itoa(inputM) + " plutoshe/mr:mr-new go run main.go -type m",
+		// }
 		newWork.UserProgram = []string{
-			"docker stop mr" + strconv.Itoa(inputM),
-			"docker rm mr" + strconv.Itoa(inputM),
-			"docker run -d -p " + strconv.Itoa(20000+inputM) + ":10000 --name mr" + strconv.Itoa(inputM) + " plutoshe/mr:mr-new go run main.go -type m",
+			"go run ../sample_user_server_go/processSentence/processSentence_server.go -type m -port " + strconv.Itoa(20000+inputM),
 		}
 		//../sample_mapper_user_program/sample_mapper_server
-		newWork.UserServerAddress = "192.168.59.103:" + strconv.Itoa(20000+inputM)
+		// 192.168.59.103
+		newWork.UserServerAddress = "localhost:" + strconv.Itoa(20000+inputM)
 		newWork.WorkType = "Mapper"
 		newWork.SupplyContent = []string{""}
 		mapperWorkDir = append(mapperWorkDir, newWork)

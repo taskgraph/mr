@@ -20,7 +20,7 @@ func main() {
 	programType := flag.String("type", "", "(c) controller, (m) mapper, (s) shuffle, or (r) reducer")
 	job := flag.String("job", "mapreduce+mapper", "job name")
 	mapperNum := flag.Int("mapperNum", 5, "mapperNum")
-	WorkerNum := flag.Int("WorkerNum", 3, "WorkerNum")
+	WorkerNum := flag.Int("WorkerNum", 1, "WorkerNum")
 	reducerNum := flag.Int("reducerNum", 3, "reducerNum")
 	azureAccountName := flag.String("azureAccountName", "spluto", "azureAccountName")
 	azureAccountKey := flag.String("azureAccountKey", "", "azureAccountKey")
@@ -53,8 +53,10 @@ func main() {
 
 		newWork.OutputFilePath = []string{*outputDir + "/reducerOutput" + strconv.Itoa(i)}
 
-		newWork.UserProgram = []string{"../sample_reducer_user_program/sample_reducer_server"}
-		newWork.UserServerAddress = "localhost"
+		newWork.UserProgram = []string{
+			"go run ../sample_user_server_go/processSentence/processSentence_server.go -type r -port " + strconv.Itoa(20000+i),
+		}
+		newWork.UserServerAddress = "localhost:" + strconv.Itoa(20000+i)
 		newWork.WorkType = "Reducer"
 		newWork.SupplyContent = []string{strconv.Itoa(*mapperNum) + " " + strconv.Itoa(i)}
 		reducerWorkDir = append(reducerWorkDir, newWork)

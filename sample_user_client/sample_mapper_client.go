@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	address     = "192.168.59.103"
+	address     = "localhost" //"192.168.59.103"
 	defaultName = "world"
 )
 
@@ -45,17 +45,19 @@ func testEmit(key string, value string, stop bool) {
 func main() {
 	// Set up a connection to the server.
 	flag.Parse()
+	fmt.Println("link server ", (address + fmt.Sprintf(":%d", *port)))
 	conn, err := grpc.Dial(address + fmt.Sprintf(":%d", *port))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
+
 	c = pb.NewMapperClient(conn)
 
 	// Contact the server and print out its response.
 	fmt.Println("link server ", (address + fmt.Sprintf(":%d", *port)))
 
-	testEmit("a b c d e f g", "", false)
+	testEmit("a b c d e 。f g，", "", false)
 	testEmit("a a c dsdf e f gww", "", false)
 	testEmit("Stop", "Stop", true)
 

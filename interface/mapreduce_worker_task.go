@@ -94,7 +94,7 @@ func (t *workerTask) startNewUserServer(cmdline []string) {
 		head := parts[0]
 		parts = parts[1:len(parts)]
 		cmd := exec.Command(head, parts...)
-		if head == "docker" && parts[0] == "run" {
+		if parts[0] == "run" {
 			err := cmd.Start()
 			if err != nil {
 				log.Println(err)
@@ -110,6 +110,7 @@ func (t *workerTask) startNewUserServer(cmdline []string) {
 }
 
 func (t *workerTask) getNewMapperUserServer(address string) pb.MapperClient {
+	t.logger.Println(address)
 	conn, err := grpc.Dial(address)
 	if err != nil {
 		t.logger.Fatalf("did not connect: %v", err)
