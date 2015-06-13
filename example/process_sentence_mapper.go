@@ -10,9 +10,9 @@ import (
 
 	mapreduce "../../mr/interface"
 	"github.com/coreos/go-etcd/etcd"
-	"github.com/taskgraph/taskgraph/controller"
-	"github.com/taskgraph/taskgraph/example/topo"
-	"github.com/taskgraph/taskgraph/filesystem"
+	"github.com/plutoshe/taskgraph/controller"
+	"github.com/plutoshe/taskgraph/example/topo"
+	"github.com/plutoshe/taskgraph/filesystem"
 	"github.com/taskgraph/taskgraph/framework"
 )
 
@@ -49,7 +49,7 @@ func main() {
 	mapperWorkDir := make([]mapreduce.WorkConfig, 0)
 
 	for inputM := 1; inputM <= *mapperNum; inputM++ {
-		w := fmt.Sprintf("%03d", inputM+10)
+		w := fmt.Sprintf("%03d", 2+10)
 		inputFile := "00000pagestestmapreduceframework/pagesNew" + w + ".txt"
 		newWork := mapreduce.WorkConfig{}
 		newWork.InputFilePath = []string{inputFile}
@@ -60,7 +60,7 @@ func main() {
 		// 	"docker run -d -p " + strconv.Itoa(20000+inputM) + ":10000 --name mr" + strconv.Itoa(inputM) + " plutoshe/mr:mr-new go run main.go -type m",
 		// }
 		newWork.UserProgram = []string{
-			"../sample_user_server_go/processSentence/processSentence_server -type m -port " + strconv.Itoa(20000+inputM),
+			"b ../sample_user_server_go/processSentence/processSentence_server -type m -port " + strconv.Itoa(20000+inputM),
 		}
 		//../sample_mapper_user_program/sample_mapper_server
 		// 192.168.59.103

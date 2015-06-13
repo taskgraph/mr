@@ -91,10 +91,11 @@ func (t *workerTask) startNewUserServer(cmdline []string) {
 	// argv := []string{"-port", strconv.FormatUint(t.userSeverPort, 10)}
 	for i := 0; i < len(cmdline); i++ {
 		parts := strings.Fields(cmdline[i])
-		head := parts[0]
-		parts = parts[1:len(parts)]
+		background := parts[0]
+		head := parts[1]
+		parts = parts[2:len(parts)]
 		cmd := exec.Command(head, parts...)
-		if parts[0] == "run" {
+		if background == "b" {
 			err := cmd.Start()
 			if err != nil {
 				log.Println(err)
@@ -295,7 +296,7 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workCon
 	for readFileID := 0; readFileID < len(workConfig.InputFilePath); readFileID++ {
 		mapperReaderCloser, err := t.config.FilesystemClient.OpenReadCloser(workConfig.InputFilePath[readFileID])
 		if err != nil {
-			t.logger.Printf("MapReduce : get mapreduce filesystem client reader failed, ", err)
+			t.logger.Fatalf("MapReduce : get mapreduce filesystem client reader failed, ", err)
 		}
 
 		var str string
