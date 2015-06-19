@@ -11,10 +11,6 @@ It is generated from these files:
 It has these top-level messages:
 	MapperRequest
 	MapperResponse
-	ReducerRequest
-	ReducerResponse
-	WorkRequest
-	WorkConfigResponse
 */
 package proto
 
@@ -49,41 +45,6 @@ type MapperResponse struct {
 func (m *MapperResponse) Reset()         { *m = MapperResponse{} }
 func (m *MapperResponse) String() string { return proto1.CompactTextString(m) }
 func (*MapperResponse) ProtoMessage()    {}
-
-type ReducerRequest struct {
-	Key   string   `protobuf:"bytes,1,opt,name=key" json:"key,omitempty"`
-	Value []string `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
-}
-
-func (m *ReducerRequest) Reset()         { *m = ReducerRequest{} }
-func (m *ReducerRequest) String() string { return proto1.CompactTextString(m) }
-func (*ReducerRequest) ProtoMessage()    {}
-
-type ReducerResponse struct {
-	Key   string `protobuf:"bytes,1,opt,name=key" json:"key,omitempty"`
-	Value string `protobuf:"bytes,2,opt,name=value" json:"value,omitempty"`
-}
-
-func (m *ReducerResponse) Reset()         { *m = ReducerResponse{} }
-func (m *ReducerResponse) String() string { return proto1.CompactTextString(m) }
-func (*ReducerResponse) ProtoMessage()    {}
-
-type WorkRequest struct {
-	TaskID uint64 `protobuf:"varint,1,opt,name=taskID" json:"taskID,omitempty"`
-}
-
-func (m *WorkRequest) Reset()         { *m = WorkRequest{} }
-func (m *WorkRequest) String() string { return proto1.CompactTextString(m) }
-func (*WorkRequest) ProtoMessage()    {}
-
-type WorkConfigResponse struct {
-	Key   []string `protobuf:"bytes,1,rep,name=key" json:"key,omitempty"`
-	Value []string `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
-}
-
-func (m *WorkConfigResponse) Reset()         { *m = WorkConfigResponse{} }
-func (m *WorkConfigResponse) String() string { return proto1.CompactTextString(m) }
-func (*WorkConfigResponse) ProtoMessage()    {}
 
 func init() {
 }
@@ -178,211 +139,97 @@ var _Mapper_serviceDesc = grpc.ServiceDesc{
 	},
 }
 
-// Client API for Reducer service
+// Client API for MapperStream service
 
-type ReducerClient interface {
-	GetCollectResult(ctx context.Context, in *ReducerRequest, opts ...grpc.CallOption) (Reducer_GetCollectResultClient, error)
+type MapperStreamClient interface {
+	GetStreamEmitResult(ctx context.Context, opts ...grpc.CallOption) (MapperStream_GetStreamEmitResultClient, error)
 }
 
-type reducerClient struct {
+type mapperStreamClient struct {
 	cc *grpc.ClientConn
 }
 
-func NewReducerClient(cc *grpc.ClientConn) ReducerClient {
-	return &reducerClient{cc}
+func NewMapperStreamClient(cc *grpc.ClientConn) MapperStreamClient {
+	return &mapperStreamClient{cc}
 }
 
-func (c *reducerClient) GetCollectResult(ctx context.Context, in *ReducerRequest, opts ...grpc.CallOption) (Reducer_GetCollectResultClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Reducer_serviceDesc.Streams[0], c.cc, "/proto.Reducer/GetCollectResult", opts...)
+func (c *mapperStreamClient) GetStreamEmitResult(ctx context.Context, opts ...grpc.CallOption) (MapperStream_GetStreamEmitResultClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_MapperStream_serviceDesc.Streams[0], c.cc, "/proto.MapperStream/GetStreamEmitResult", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &reducerGetCollectResultClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
+	x := &mapperStreamGetStreamEmitResultClient{stream}
 	return x, nil
 }
 
-type Reducer_GetCollectResultClient interface {
-	Recv() (*ReducerResponse, error)
+type MapperStream_GetStreamEmitResultClient interface {
+	Send(*MapperRequest) error
+	Recv() (*MapperResponse, error)
 	grpc.ClientStream
 }
 
-type reducerGetCollectResultClient struct {
+type mapperStreamGetStreamEmitResultClient struct {
 	grpc.ClientStream
 }
 
-func (x *reducerGetCollectResultClient) Recv() (*ReducerResponse, error) {
-	m := new(ReducerResponse)
+func (x *mapperStreamGetStreamEmitResultClient) Send(m *MapperRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *mapperStreamGetStreamEmitResultClient) Recv() (*MapperResponse, error) {
+	m := new(MapperResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-// Server API for Reducer service
+// Server API for MapperStream service
 
-type ReducerServer interface {
-	GetCollectResult(*ReducerRequest, Reducer_GetCollectResultServer) error
+type MapperStreamServer interface {
+	GetStreamEmitResult(MapperStream_GetStreamEmitResultServer) error
 }
 
-func RegisterReducerServer(s *grpc.Server, srv ReducerServer) {
-	s.RegisterService(&_Reducer_serviceDesc, srv)
+func RegisterMapperStreamServer(s *grpc.Server, srv MapperStreamServer) {
+	s.RegisterService(&_MapperStream_serviceDesc, srv)
 }
 
-func _Reducer_GetCollectResult_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ReducerRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(ReducerServer).GetCollectResult(m, &reducerGetCollectResultServer{stream})
+func _MapperStream_GetStreamEmitResult_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(MapperStreamServer).GetStreamEmitResult(&mapperStreamGetStreamEmitResultServer{stream})
 }
 
-type Reducer_GetCollectResultServer interface {
-	Send(*ReducerResponse) error
+type MapperStream_GetStreamEmitResultServer interface {
+	Send(*MapperResponse) error
+	Recv() (*MapperRequest, error)
 	grpc.ServerStream
 }
 
-type reducerGetCollectResultServer struct {
+type mapperStreamGetStreamEmitResultServer struct {
 	grpc.ServerStream
 }
 
-func (x *reducerGetCollectResultServer) Send(m *ReducerResponse) error {
+func (x *mapperStreamGetStreamEmitResultServer) Send(m *MapperResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-var _Reducer_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.Reducer",
-	HandlerType: (*ReducerServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "GetCollectResult",
-			Handler:       _Reducer_GetCollectResult_Handler,
-			ServerStreams: true,
-		},
-	},
-}
-
-// Client API for Master service
-
-type MasterClient interface {
-	GetWork(ctx context.Context, in *WorkRequest, opts ...grpc.CallOption) (Master_GetWorkClient, error)
-}
-
-type masterClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewMasterClient(cc *grpc.ClientConn) MasterClient {
-	return &masterClient{cc}
-}
-
-func (c *masterClient) GetWork(ctx context.Context, in *WorkRequest, opts ...grpc.CallOption) (Master_GetWorkClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Master_serviceDesc.Streams[0], c.cc, "/proto.Master/GetWork", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &masterGetWorkClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Master_GetWorkClient interface {
-	Recv() (*WorkConfigResponse, error)
-	grpc.ClientStream
-}
-
-type masterGetWorkClient struct {
-	grpc.ClientStream
-}
-
-func (x *masterGetWorkClient) Recv() (*WorkConfigResponse, error) {
-	m := new(WorkConfigResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
+func (x *mapperStreamGetStreamEmitResultServer) Recv() (*MapperRequest, error) {
+	m := new(MapperRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-// Server API for Master service
-
-type MasterServer interface {
-	GetWork(*WorkRequest, Master_GetWorkServer) error
-}
-
-func RegisterMasterServer(s *grpc.Server, srv MasterServer) {
-	s.RegisterService(&_Master_serviceDesc, srv)
-}
-
-func _Master_GetWork_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(WorkRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(MasterServer).GetWork(m, &masterGetWorkServer{stream})
-}
-
-type Master_GetWorkServer interface {
-	Send(*WorkConfigResponse) error
-	grpc.ServerStream
-}
-
-type masterGetWorkServer struct {
-	grpc.ServerStream
-}
-
-func (x *masterGetWorkServer) Send(m *WorkConfigResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-var _Master_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.Master",
-	HandlerType: (*MasterServer)(nil),
+var _MapperStream_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.MapperStream",
+	HandlerType: (*MapperStreamServer)(nil),
 	Methods:     []grpc.MethodDesc{},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "GetWork",
-			Handler:       _Master_GetWork_Handler,
+			StreamName:    "GetStreamEmitResult",
+			Handler:       _MapperStream_GetStreamEmitResult_Handler,
 			ServerStreams: true,
+			ClientStreams: true,
 		},
 	},
-}
-
-// Client API for Worker service
-
-type WorkerClient interface {
-}
-
-type workerClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewWorkerClient(cc *grpc.ClientConn) WorkerClient {
-	return &workerClient{cc}
-}
-
-// Server API for Worker service
-
-type WorkerServer interface {
-}
-
-func RegisterWorkerServer(s *grpc.Server, srv WorkerServer) {
-	s.RegisterService(&_Worker_serviceDesc, srv)
-}
-
-var _Worker_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.Worker",
-	HandlerType: (*WorkerServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams:     []grpc.StreamDesc{},
 }

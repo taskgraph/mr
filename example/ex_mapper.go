@@ -22,43 +22,37 @@ func main() {
 	mapperNum := flag.Int("mapperNum", 5, "mapperNum")
 	WorkerNum := flag.Int("WorkerNum", 1, "WorkerNum")
 	reducerNum := flag.Int("reducerNum", 3, "reducerNum")
-	azureAccountName := flag.String("azureAccountName", "spluto", "azureAccountName")
+	// azureAccountName := flag.String("azureAccountName", "spluto", "azureAccountName")
 	azureAccountKey := flag.String("azureAccountKey", "", "azureAccountKey")
 	// outputDir := flag.String("outputDir", "0newmapreducepathformapreduce000", "outputDir")
-
+	azureAccountKey = azureAccountKey
 	flag.Parse()
 	if *job == "" {
 		log.Fatalf("Please specify a job name")
 	}
-	if *azureAccountKey == "" {
-		log.Fatalf("Please specify azureAccountKey")
-	}
+	// if *azureAccountKey == "" {
+	// 	log.Fatalf("Please specify azureAccountKey")
+	// }
 
-	azureClient, err := filesystem.NewAzureClient(
-		*azureAccountName,
-		*azureAccountKey,
-		"core.chinacloudapi.cn",
-		"2014-02-14",
-		true,
-	)
-	if err != nil {
-		log.Fatalf("%v", err)
-	}
+	azureClient := filesystem.NewLocalFSClient()
+	// if err != nil {
+	// 	log.Fatalf("%v", err)
+	// }
 
 	mapperWorkDir := make([]mapreduce.WorkConfig, 0)
 
-	for inputM := 1; inputM <= *mapperNum; inputM++ {
-		inputFile := "testforcomplexmapreduceframework/textForExamination" + strconv.Itoa(inputM)
+	for inputM := 1; inputM <= 2; inputM++ {
+		inputFile := "/Users/plutoshe/Desktop/Work/Intern/GO/MyTaskgraph/mr/example/eee" + strconv.Itoa(inputM) + ".txt"
 		newWork := mapreduce.WorkConfig{}
 		newWork.InputFilePath = []string{inputFile}
-		newWork.OutputFilePath = []string{"mapreducerprocesstemporaryresult"}
+		newWork.OutputFilePath = []string{"/Users/plutoshe/Desktop/Work/Intern/GO/MyTaskgraph/mr/example/mapreducerprocesstemporaryresult"}
 		// newWork.UserProgram = []string{
 		// 	"docker stop mr" + strconv.Itoa(inputM),
 		// 	"docker rm mr" + strconv.Itoa(inputM),
 		// 	"docker run -d -p " + strconv.Itoa(20000+inputM) + ":10000 --name mr" + strconv.Itoa(inputM) + " plutoshe/mr:mr-new go run main.go -type m",
 		// }
 		newWork.UserProgram = []string{
-			"go run ../sample_user_server_go/processSentence/processSentence_server.go -type m -port " + strconv.Itoa(20000+inputM),
+			"b go run ../sample_user_server_go/wordCount/sample_server.go -type m -port " + strconv.Itoa(20000+inputM),
 		}
 		//../sample_mapper_user_program/sample_mapper_server
 		// 192.168.59.103

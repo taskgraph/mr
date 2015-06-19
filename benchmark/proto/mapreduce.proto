@@ -17,16 +17,7 @@ message MapperResponse {
 }
 
 
-service Reducer {
-  rpc GetCollectResult(ReducerRequest) returns (stream ReducerResponse) {}
+service MapperStream {
+  rpc GetStreamEmitResult(stream MapperRequest) returns (stream MapperResponse) {}
 }
 
-message ReducerRequest {
-  string key = 1;
-  repeated string value = 2;
-}
-
-message ReducerResponse {
-  string key = 1;
-  string value = 2;
-}
