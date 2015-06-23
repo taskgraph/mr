@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"unicode/utf8"
@@ -32,6 +33,54 @@ func (*server) GetCollectResult(KvPair *pb.ReducerRequest, stream pb.Reducer_Get
 	return nil
 }
 
+func (*server) GetStreamEmitResult(stream pb.MapperStream_GetStreamEmitResultServer) error {
+	for {
+		in, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if in.Value == "Stop" && in.Key == "Stop" {
+			// server.Stop()
+			res := &pb.MapperResponse{
+				Key:   "Stop",
+				Value: "Stop",
+			}
+			if err := stream.Send(res); err != nil {
+				return err
+			}
+			defer s.Stop()
+			return nil
+		}
+
+		str := in.Key
+		chop := ""
+		str += "。"
+
+		for len(str) > 0 {
+			cc, size := utf8.DecodeRuneInString(str)
+			if cc == '，' || cc == '。' || cc == '？' || cc == '！' || cc == '；' {
+				if len(chop) >= 3 && len(chop) <= 30 {
+					res := &pb.MapperResponse{
+						Key:   chop,
+						Value: "1",
+					}
+					// fmt.Println(chop[i])
+					if err := stream.Send(res); err != nil {
+						return err
+					}
+				}
+				chop = ""
+			} else {
+				chop += fmt.Sprintf("%c", cc)
+			}
+			str = str[size:]
+		}
+	}
+}
+
 func (*server) GetEmitResult(KvPair *pb.MapperRequest, stream pb.Mapper_GetEmitResultServer) error {
 	fmt.Println("===in Emit Function")
 
@@ -48,7 +97,8 @@ func (*server) GetEmitResult(KvPair *pb.MapperRequest, stream pb.Mapper_GetEmitR
 
 	for len(str) > 0 {
 		cc, size := utf8.DecodeRuneInString(str)
-		if cc == '。' || cc == '？' || cc == '！' || cc == '；' {
+		log.Println(cc)
+		if cc == '，' || cc == '。' || cc == '？' || cc == '！' || cc == '；' {
 			if len(chop) >= 3 && len(chop) <= 30 {
 				res := &pb.MapperResponse{
 					Key:   chop,
@@ -58,8 +108,8 @@ func (*server) GetEmitResult(KvPair *pb.MapperRequest, stream pb.Mapper_GetEmitR
 				if err := stream.Send(res); err != nil {
 					return err
 				}
-				chop = ""
 			}
+			chop = ""
 		} else {
 			chop += fmt.Sprintf("%c", cc)
 		}
@@ -83,7 +133,7 @@ func main() {
 
 	if *tp == "m" {
 		s = grpc.NewServer()
-		pb.RegisterMapperServer(s, &server{})
+		pb.RegisterMapperStreamServer(s, &server{})
 		s.Serve(lis)
 	} else {
 		s = grpc.NewServer()

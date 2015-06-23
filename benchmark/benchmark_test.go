@@ -61,8 +61,6 @@ func benchmarkForGRPCstream(inputFile string) {
 	target, stopper := newMapperStreamServer("localhost:0")
 	defer stopper()
 	grpcServer := getNewMapperStreamUserServer(target)
-	// stream := grpcStreamEmitKvPairs(grpcServer)
-	// stream = stream
 	waitc := make(chan struct{})
 	stream, err := grpcServer.GetStreamEmitResult(context.Background())
 	if err != nil {
@@ -83,7 +81,6 @@ func benchmarkForGRPCstream(inputFile string) {
 		}
 	}()
 
-	// var err error
 	var str []byte
 	for err != io.EOF {
 		str, err = newReadCloser.ReadBytes('\n')
@@ -99,7 +96,7 @@ func benchmarkForGRPCstream(inputFile string) {
 	<-waitc
 }
 
-func BenchmarkForGenearl(b *testing.B) {
+func BenchmarkForGeneral(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchmarkForGeneral("pagesNew001.txt")
 	}
