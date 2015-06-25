@@ -24,7 +24,7 @@ func (*server) GetCollectResult(KvPair *pb.ReducerRequest, stream pb.Reducer_Get
 	fmt.Println("===in Collect Function")
 	if KvPair.Key == "Stop" && len(KvPair.Value) == 0 {
 		// server.Stop()
-		s.Stop()
+		defer s.Stop()
 		fmt.Println("Stop")
 		return nil
 	}
@@ -33,27 +33,50 @@ func (*server) GetCollectResult(KvPair *pb.ReducerRequest, stream pb.Reducer_Get
 	return nil
 }
 
-func (*server) GetStreamEmitResult(stream pb.MapperStream_GetStreamEmitResultServer) error {
+func (*server) GetStreamCollectResult(stream pb.Reducer_GetStreamCollectResultServer) error {
+
 	for {
 		in, err := stream.Recv()
 		if err == io.EOF {
+			defer s.Stop()
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		if in.Value == "Stop" && in.Key == "Stop" {
-			// server.Stop()
-			res := &pb.MapperResponse{
-				Key:   "Stop",
-				Value: "Stop",
-			}
-			if err := stream.Send(res); err != nil {
-				return err
-			}
+		str = in.Key
+		err = stream.Send(&pb.MapperResponse{Key: str, Value: ""})
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
+
+func (*server) GetStreamEmitResult(stream pb.MapperStream_GetStreamEmitResultServer) error {
+	for {
+		in, err := stream.Recv()
+		if err == io.EOF {
 			defer s.Stop()
 			return nil
 		}
+		if err != nil {
+			return err
+		}
+		// if in.Value == "Stop" && in.Key == "Stop" {
+		// 	// server.Stop()
+		// 	res := &pb.MapperResponse{
+		// 		Key:   "Stop",
+		// 		Value: "Stop",
+		// 	}
+		// 	if err := stream.Send(res); err != nil {
+		// 		return err
+		// 	}
+		// 	defer s.Stop()
+		// 	return nil
+		// }
 
 		str := in.Key
 		chop := ""
@@ -68,7 +91,8 @@ func (*server) GetStreamEmitResult(stream pb.MapperStream_GetStreamEmitResultSer
 						Value: "1",
 					}
 					// fmt.Println(chop[i])
-					if err := stream.Send(res); err != nil {
+					err := stream.Send(res)
+					if err != nil {
 						return err
 					}
 				}
@@ -86,7 +110,7 @@ func (*server) GetEmitResult(KvPair *pb.MapperRequest, stream pb.Mapper_GetEmitR
 
 	if KvPair.Value == "Stop" && KvPair.Key == "Stop" {
 		// server.Stop()
-		s.Stop()
+		defer s.Stop()
 		fmt.Println("Stop")
 		return nil
 	}
@@ -105,7 +129,8 @@ func (*server) GetEmitResult(KvPair *pb.MapperRequest, stream pb.Mapper_GetEmitR
 					Value: "1",
 				}
 				// fmt.Println(chop[i])
-				if err := stream.Send(res); err != nil {
+				err = stream.Send(res)
+				if err != nil {
 					return err
 				}
 			}

@@ -1262,6 +1262,101 @@ var _Reducer_serviceDesc = grpc.ServiceDesc{
 	},
 }
 
+// Client API for ReducerStream service
+
+type ReducerStreamClient interface {
+	GetStreamCollectResult(ctx context.Context, opts ...grpc.CallOption) (ReducerStream_GetStreamCollectResultClient, error)
+}
+
+type reducerStreamClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewReducerStreamClient(cc *grpc.ClientConn) ReducerStreamClient {
+	return &reducerStreamClient{cc}
+}
+
+func (c *reducerStreamClient) GetStreamCollectResult(ctx context.Context, opts ...grpc.CallOption) (ReducerStream_GetStreamCollectResultClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_ReducerStream_serviceDesc.Streams[0], c.cc, "/proto.ReducerStream/GetStreamCollectResult", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &reducerStreamGetStreamCollectResultClient{stream}
+	return x, nil
+}
+
+type ReducerStream_GetStreamCollectResultClient interface {
+	Send(*ReducerRequest) error
+	Recv() (*ReducerResponse, error)
+	grpc.ClientStream
+}
+
+type reducerStreamGetStreamCollectResultClient struct {
+	grpc.ClientStream
+}
+
+func (x *reducerStreamGetStreamCollectResultClient) Send(m *ReducerRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *reducerStreamGetStreamCollectResultClient) Recv() (*ReducerResponse, error) {
+	m := new(ReducerResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+// Server API for ReducerStream service
+
+type ReducerStreamServer interface {
+	GetStreamCollectResult(ReducerStream_GetStreamCollectResultServer) error
+}
+
+func RegisterReducerStreamServer(s *grpc.Server, srv ReducerStreamServer) {
+	s.RegisterService(&_ReducerStream_serviceDesc, srv)
+}
+
+func _ReducerStream_GetStreamCollectResult_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ReducerStreamServer).GetStreamCollectResult(&reducerStreamGetStreamCollectResultServer{stream})
+}
+
+type ReducerStream_GetStreamCollectResultServer interface {
+	Send(*ReducerResponse) error
+	Recv() (*ReducerRequest, error)
+	grpc.ServerStream
+}
+
+type reducerStreamGetStreamCollectResultServer struct {
+	grpc.ServerStream
+}
+
+func (x *reducerStreamGetStreamCollectResultServer) Send(m *ReducerResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *reducerStreamGetStreamCollectResultServer) Recv() (*ReducerRequest, error) {
+	m := new(ReducerRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+var _ReducerStream_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "proto.ReducerStream",
+	HandlerType: (*ReducerStreamServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetStreamCollectResult",
+			Handler:       _ReducerStream_GetStreamCollectResult_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
+}
+
 // Client API for Master service
 
 type MasterClient interface {

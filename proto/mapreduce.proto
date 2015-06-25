@@ -26,6 +26,10 @@ service Reducer {
   rpc GetCollectResult(ReducerRequest) returns (stream ReducerResponse) {}
 }
 
+service ReducerStream {
+  rpc GetStreamCollectResult(stream ReducerRequest) returns (stream ReducerResponse) {}
+}
+
 message ReducerRequest {
   string key = 1;
   repeated string value = 2;

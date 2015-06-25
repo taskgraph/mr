@@ -11,9 +11,9 @@ import (
 	"strconv"
 	"strings"
 
+	pb "../proto"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/protobuf/proto"
-	pb "github.com/plutoshe/mr/proto"
 	"github.com/taskgraph/taskgraph"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -319,10 +319,8 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workCon
 	}
 
 	// stop user program grpc client
-	t.logger.Println("111")
 	stream.Send(&pb.MapperRequest{Key: "Stop", Value: "Stop"})
 	<-waitc
-	t.logger.Println("222")
 	//flush output result
 	for i = 0; i < t.config.ReducerNum; i++ {
 		t.mapperWriteCloser[i].Flush()
