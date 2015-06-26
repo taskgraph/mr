@@ -8,7 +8,7 @@ import (
 	"net"
 	"unicode/utf8"
 
-	pb "github.com/plutoshe/mr/proto"
+	pb "../../proto"
 	"google.golang.org/grpc"
 )
 
@@ -19,6 +19,34 @@ var (
 )
 
 type server struct{}
+
+func (*server) GetStreamCollectResult(stream pb.ReducerStream_GetStreamCollectResultServer) error {
+
+	for {
+		in, err := stream.Recv()
+		if in.Key == "Stop" && len(in.Value) == 0 {
+
+			err = stream.Send(&pb.ReducerResponse{Key: "Stop", Value: "Stop"})
+			if err != nil {
+				return err
+			}
+			defer s.Stop()
+			fmt.Println("Stop")
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		str := in.Key
+		err = stream.Send(&pb.ReducerResponse{Key: str, Value: ""})
+		if err != nil {
+			return err
+		}
+
+	}
+
+	return nil
+}
 
 func (*server) GetCollectResult(KvPair *pb.ReducerRequest, stream pb.Reducer_GetCollectResultServer) error {
 	fmt.Println("===in Collect Function")
@@ -33,28 +61,6 @@ func (*server) GetCollectResult(KvPair *pb.ReducerRequest, stream pb.Reducer_Get
 	return nil
 }
 
-func (*server) GetStreamCollectResult(stream pb.Reducer_GetStreamCollectResultServer) error {
-
-	for {
-		in, err := stream.Recv()
-		if err == io.EOF {
-			defer s.Stop()
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		str = in.Key
-		err = stream.Send(&pb.MapperResponse{Key: str, Value: ""})
-		if err != nil {
-			return err
-		}
-
-	}
-
-	return nil
-}
-
 func (*server) GetStreamEmitResult(stream pb.MapperStream_GetStreamEmitResultServer) error {
 	for {
 		in, err := stream.Recv()
@@ -65,18 +71,18 @@ func (*server) GetStreamEmitResult(stream pb.MapperStream_GetStreamEmitResultSer
 		if err != nil {
 			return err
 		}
-		// if in.Value == "Stop" && in.Key == "Stop" {
-		// 	// server.Stop()
-		// 	res := &pb.MapperResponse{
-		// 		Key:   "Stop",
-		// 		Value: "Stop",
-		// 	}
-		// 	if err := stream.Send(res); err != nil {
-		// 		return err
-		// 	}
-		// 	defer s.Stop()
-		// 	return nil
-		// }
+		if in.Value == "Stop" && in.Key == "Stop" {
+			// server.Stop()
+			res := &pb.MapperResponse{
+				Key:   "Stop",
+				Value: "Stop",
+			}
+			if err := stream.Send(res); err != nil {
+				return err
+			}
+			defer s.Stop()
+			return nil
+		}
 
 		str := in.Key
 		chop := ""
@@ -129,7 +135,7 @@ func (*server) GetEmitResult(KvPair *pb.MapperRequest, stream pb.Mapper_GetEmitR
 					Value: "1",
 				}
 				// fmt.Println(chop[i])
-				err = stream.Send(res)
+				err := stream.Send(res)
 				if err != nil {
 					return err
 				}
@@ -162,7 +168,7 @@ func main() {
 		s.Serve(lis)
 	} else {
 		s = grpc.NewServer()
-		pb.RegisterReducerServer(s, &server{})
+		pb.RegisterReducerStreamServer(s, &server{})
 		s.Serve(lis)
 	}
 }
