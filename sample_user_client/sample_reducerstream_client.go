@@ -18,7 +18,7 @@ const (
 
 var (
 	port = flag.Int("port", 10000, "The server port")
-	c    pb.MapperClient
+	// c    pb.MapperClient
 )
 
 func main() {
@@ -47,17 +47,30 @@ func main() {
 			log.Println(in)
 			if err != nil && err != io.EOF {
 				log.Fatalf("Failed to receive a note : %v", err)
+				return
 			}
-			if err == io.EOF || (in.Key == "Stop" && in.Value == "Stop") {
+			if err == io.EOF || (len(in.Arr) == 1 && in.Arr[0].Key == "Stop" && in.Arr[0].Value == "Stop") {
 
 				close(waitc)
 				return
 			}
 		}
 	}()
+	var b []*pb.KvsPair
+	b = append(b, &pb.KvsPair{"a b c d e 。f g，", []string{"1", "2", "3"}})
+	b = append(b, &pb.KvsPair{"a b c d e 。f g，", []string{"1", "2", "3"}})
+	b = append(b, &pb.KvsPair{"a b c d e 。f g，", []string{"1", "2", "3"}})
+	b = append(b, &pb.KvsPair{"a b c d e 。f g，", []string{"1", "2", "3"}})
 
-	stream.Send(&pb.ReducerRequest{"a b c d e 。f g，", []string{"1", "2", "3"}})
-	stream.Send(&pb.ReducerRequest{"a a c dsdf。 e f gww", []string{""}})
-	stream.Send(&pb.ReducerRequest{"a a c dsdf e， f ｀！gww", []string{""}})
+	stream.Send(&pb.ReducerRequest{b})
+	stream.Send(&pb.ReducerRequest{b})
+	b = nil
+	b = append(b, &pb.KvsPair{"a a c dsdf。 e f gww", []string{""}})
+	stream.Send(&pb.ReducerRequest{b})
+
+	b = append(b, &pb.KvsPair{"a a c dsdf e， f ｀！gww", []string{""}})
+	stream.Send(&pb.ReducerRequest{b})
+	stream.Send(&pb.ReducerRequest{})
+	<-waitc
 
 }

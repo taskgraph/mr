@@ -1,6 +1,6 @@
 #!/bin/sh
-
-ETCDBIN=$GOPATH/etcd-v2.1.0-alpha.1-linux-amd64
+ETCDBIN=$GOPATH/etcd-v2.0.5-darwin-amd64
+#ETCDBIN=$GOPATH/etcd-v2.1.0-alpha.1-linux-amd64
 
 # clear etcd
 $ETCDBIN/etcdctl rm --recursive reducer+test/

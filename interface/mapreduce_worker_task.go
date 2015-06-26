@@ -2,7 +2,6 @@ package mapreduce
 
 import (
 	"bufio"
-	"io"
 	"log"
 	"os"
 	"strings"
@@ -14,6 +13,8 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
+
+const bufferSize = 20
 
 type workerTask struct {
 	framework          taskgraph.Framework
@@ -178,26 +179,6 @@ func (t *workerTask) getWorkID() string {
 		log.Fatal("etcdutil: can not get worker status from etcd")
 	}
 	return requestWorkStatus.Node.Value
-}
-
-func (t *workerTask) collectKvPairs(userClient pb.ReducerClient, key string, value []string, stop bool) {
-	r, err := userClient.GetCollectResult(context.Background(), &pb.ReducerRequest{Key: key, Value: value})
-	if err != nil {
-		log.Fatalf("could not greet: %v", err)
-	}
-	if !stop {
-		for {
-			feature, err := r.Recv()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				log.Fatalf("%v.GetCollectResult, %v", userClient, err)
-				return
-			}
-			t.Collect(feature.Key, feature.Value)
-		}
-	}
 }
 
 func (t *workerTask) EnterEpoch(ctx context.Context, epoch uint64) {

@@ -33,7 +33,6 @@ func (t *workerTask) Emit(key, val string) {
 }
 
 func (t *workerTask) Collect(key string, val string) {
-	t.logger.Println("!!!Write", key, val)
 	t.reducerWriteCloser.Write([]byte(key + " " + val + "\n"))
 }
 
@@ -78,16 +77,20 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workCon
 			// t.logger.Println(in)
 			if err != nil && err != io.EOF {
 				log.Fatalf("Failed to receive a note : %v", err)
+				return
 			}
-			if err == io.EOF || (in.Key == "Stop" && in.Value == "Stop") {
+			if err == io.EOF || (len(in.Arr) == 1 && in.Arr[0].Key == "Stop" && in.Arr[0].Value == "Stop") {
 				// read done.
 				close(waitc)
 				return
 			}
-
-			t.Emit(in.Key, in.Value)
+			for _, v := range in.Arr {
+				t.Emit(v.Key, v.Value)
+			}
 		}
 	}()
+
+	var buf []*pb.KvPair
 
 	// Input file loading
 	for readFileID := 0; readFileID < len(workConfig.InputFilePath); readFileID++ {
@@ -107,14 +110,19 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workCon
 			if err != io.EOF {
 				str = str[:len(str)-1]
 			}
-			stream.Send(&pb.MapperRequest{Key: str, Value: ""})
+			buf = append(buf, &pb.KvPair{Key: str, Value: ""})
+			if len(buf) >= bufferSize {
+				stream.Send(&pb.MapperRequest{buf})
+				buf = nil
+			}
 		}
 		// stop the reader of corresponding file
 		mapperReaderCloser.Close()
 	}
 
 	// stop user program grpc client
-	stream.Send(&pb.MapperRequest{Key: "Stop", Value: "Stop"})
+	stream.Send(&pb.MapperRequest{buf})
+	stream.Send(&pb.MapperRequest{})
 	<-waitc
 	//flush output result
 	for i = 0; i < t.config.ReducerNum; i++ {
@@ -138,12 +146,14 @@ func (t *workerTask) reducerProcedure(ctx context.Context, workID string, workCo
 			if err != nil && err != io.EOF {
 				log.Fatalf("Failed to receive a note : %v", err)
 			}
-			if err == io.EOF || (in.Key == "Stop" && in.Value == "Stop") {
+			if err == io.EOF || (len(in.Arr) == 1 && in.Arr[0].Key == "Stop" && in.Arr[0].Value == "Stop") {
 
 				close(waitc)
 				return
 			}
-			t.Collect(in.Key, in.Value)
+			for _, v := range in.Arr {
+				t.Collect(v.Key, v.Value)
+			}
 		}
 	}()
 	reducerOutputPath := workConfig.OutputFilePath[0]
@@ -151,6 +161,9 @@ func (t *workerTask) reducerProcedure(ctx context.Context, workID string, workCo
 
 	reducerWriteCloser, err := t.config.FilesystemClient.OpenWriteCloser(reducerOutputPath)
 	t.reducerWriteCloser = *bufio.NewWriterSize(reducerWriteCloser, t.config.WriterBufferSize)
+
+	var buf []*pb.KvsPair
+
 	for ProcessID := 0; ProcessID < len(workConfig.InputFilePath); ProcessID++ {
 		t.shuffleContainer = make(map[string][]string)
 
@@ -192,13 +205,16 @@ func (t *workerTask) reducerProcedure(ctx context.Context, workID string, workCo
 
 		for k := range t.shuffleContainer {
 			// t.collectKvPairs(userClient, k, t.shuffleContainer[k], false)
-			t.logger.Println("-------", k, t.shuffleContainer[k])
-			stream.Send(&pb.ReducerRequest{k, t.shuffleContainer[k]})
+			buf = append(buf, &pb.KvsPair{Key: k, Value: t.shuffleContainer[k]})
+			if len(buf) >= bufferSize {
+				stream.Send(&pb.ReducerRequest{buf})
+				buf = nil
+			}
 		}
 
 	}
-	t.logger.Println("aaaaa")
-	stream.Send(&pb.ReducerRequest{"Stop", []string{}})
+	stream.Send(&pb.ReducerRequest{buf})
+	stream.Send(&pb.ReducerRequest{})
 	<-waitc
 	t.reducerWriteCloser.Flush()
 	t.logger.Println("finshed reducer")

@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 
-	pb "github.com/plutoshe/mr/proto"
+	pb "../proto"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
@@ -18,7 +18,6 @@ const (
 
 var (
 	port = flag.Int("port", 10000, "The server port")
-	c    pb.MapperClient
 )
 
 func main() {
@@ -44,23 +43,36 @@ func main() {
 	go func() {
 		for {
 			in, err := stream.Recv()
-			if (in.Key == "Stop" && in.Value == "Stop") || err == io.EOF {
+			if err != nil && err != io.EOF {
+				log.Fatalf("Failed to receive a note : %v", err)
+				return
+			}
+			if err == io.EOF || (len(in.Arr) == 1 && in.Arr[0].Key == "Stop" && in.Arr[0].Value == "Stop") {
 				// read done.
 				close(waitc)
 				return
 			}
-			if err != nil {
-				log.Fatalf("Failed to receive a note : %v", err)
-			}
+
 			fmt.Println(in)
 		}
 	}()
 
-	stream.Send(&pb.MapperRequest{"a b c d e 。f g，", ""})
-	stream.Send(&pb.MapperRequest{"a a c dsdf。 e f gww", ""})
-	stream.Send(&pb.MapperRequest{"a a c dsdf e， f ｀！gww", ""})
+	var b []*pb.KvPair
+	b = append(b, &pb.KvPair{"a b c d e 。f g，", ""})
+	b = append(b, &pb.KvPair{"a b c d e 。f g，", ""})
+	b = append(b, &pb.KvPair{"a b c d e 。f g，", ""})
 
-	stream.Send(&pb.MapperRequest{"Stop", "Stop"})
+	stream.Send(&pb.MapperRequest{b})
+	stream.Send(&pb.MapperRequest{b})
+	b = nil
+	b = append(b, &pb.KvPair{"a a c dsdf e， f ｀！gww", ""})
+	stream.Send(&pb.MapperRequest{b})
+
+	b = nil
+	b = append(b, &pb.KvPair{"aaaaaaaaaaaaaaaaaaaaaaaaaaaa", ""})
+	stream.Send(&pb.MapperRequest{b})
+
+	stream.Send(&pb.MapperRequest{})
 	// stream.CloseSend()
 	<-waitc
 
