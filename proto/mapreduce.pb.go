@@ -9,6 +9,8 @@
 		mapreduce.proto
 
 	It has these top-level messages:
+		KvPair
+		KvsPair
 		MapperRequest
 		MapperResponse
 		ReducerRequest
@@ -35,41 +37,83 @@ var _ grpc.ClientConn
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto1.Marshal
 
-type MapperRequest struct {
+type KvPair struct {
 	Key   string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+}
+
+func (m *KvPair) Reset()         { *m = KvPair{} }
+func (m *KvPair) String() string { return proto1.CompactTextString(m) }
+func (*KvPair) ProtoMessage()    {}
+
+type KvsPair struct {
+	Key   string   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	Value []string `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
+}
+
+func (m *KvsPair) Reset()         { *m = KvsPair{} }
+func (m *KvsPair) String() string { return proto1.CompactTextString(m) }
+func (*KvsPair) ProtoMessage()    {}
+
+type MapperRequest struct {
+	Arr []*KvPair `protobuf:"bytes,1,rep,name=arr" json:"arr,omitempty"`
 }
 
 func (m *MapperRequest) Reset()         { *m = MapperRequest{} }
 func (m *MapperRequest) String() string { return proto1.CompactTextString(m) }
 func (*MapperRequest) ProtoMessage()    {}
 
+func (m *MapperRequest) GetArr() []*KvPair {
+	if m != nil {
+		return m.Arr
+	}
+	return nil
+}
+
 type MapperResponse struct {
-	Key   string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Arr []*KvPair `protobuf:"bytes,1,rep,name=arr" json:"arr,omitempty"`
 }
 
 func (m *MapperResponse) Reset()         { *m = MapperResponse{} }
 func (m *MapperResponse) String() string { return proto1.CompactTextString(m) }
 func (*MapperResponse) ProtoMessage()    {}
 
+func (m *MapperResponse) GetArr() []*KvPair {
+	if m != nil {
+		return m.Arr
+	}
+	return nil
+}
+
 type ReducerRequest struct {
-	Key   string   `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Value []string `protobuf:"bytes,2,rep,name=value" json:"value,omitempty"`
+	Arr []*KvsPair `protobuf:"bytes,1,rep,name=arr" json:"arr,omitempty"`
 }
 
 func (m *ReducerRequest) Reset()         { *m = ReducerRequest{} }
 func (m *ReducerRequest) String() string { return proto1.CompactTextString(m) }
 func (*ReducerRequest) ProtoMessage()    {}
 
+func (m *ReducerRequest) GetArr() []*KvsPair {
+	if m != nil {
+		return m.Arr
+	}
+	return nil
+}
+
 type ReducerResponse struct {
-	Key   string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
-	Value string `protobuf:"bytes,2,opt,name=value,proto3" json:"value,omitempty"`
+	Arr []*KvPair `protobuf:"bytes,1,rep,name=arr" json:"arr,omitempty"`
 }
 
 func (m *ReducerResponse) Reset()         { *m = ReducerResponse{} }
 func (m *ReducerResponse) String() string { return proto1.CompactTextString(m) }
 func (*ReducerResponse) ProtoMessage()    {}
+
+func (m *ReducerResponse) GetArr() []*KvPair {
+	if m != nil {
+		return m.Arr
+	}
+	return nil
+}
 
 type WorkRequest struct {
 	TaskID uint64 `protobuf:"varint,1,opt,name=taskID,proto3" json:"taskID,omitempty"`
@@ -90,7 +134,7 @@ func (*WorkConfigResponse) ProtoMessage()    {}
 
 func init() {
 }
-func (m *MapperRequest) Unmarshal(data []byte) error {
+func (m *KvPair) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
@@ -176,93 +220,7 @@ func (m *MapperRequest) Unmarshal(data []byte) error {
 
 	return nil
 }
-func (m *MapperResponse) Unmarshal(data []byte) error {
-	l := len(data)
-	iNdEx := 0
-	for iNdEx < l {
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := data[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			postIndex := iNdEx + int(stringLen)
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Key = string(data[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			postIndex := iNdEx + int(stringLen)
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Value = string(data[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			var sizeOfWire int
-			for {
-				sizeOfWire++
-				wire >>= 7
-				if wire == 0 {
-					break
-				}
-			}
-			iNdEx -= sizeOfWire
-			skippy, err := skipMapreduce(data[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	return nil
-}
-func (m *ReducerRequest) Unmarshal(data []byte) error {
+func (m *KvsPair) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
 	for iNdEx < l {
@@ -348,6 +306,207 @@ func (m *ReducerRequest) Unmarshal(data []byte) error {
 
 	return nil
 }
+func (m *MapperRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Arr", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Arr = append(m.Arr, &KvPair{})
+			if err := m.Arr[len(m.Arr)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			var sizeOfWire int
+			for {
+				sizeOfWire++
+				wire >>= 7
+				if wire == 0 {
+					break
+				}
+			}
+			iNdEx -= sizeOfWire
+			skippy, err := skipMapreduce(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	return nil
+}
+func (m *MapperResponse) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Arr", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Arr = append(m.Arr, &KvPair{})
+			if err := m.Arr[len(m.Arr)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			var sizeOfWire int
+			for {
+				sizeOfWire++
+				wire >>= 7
+				if wire == 0 {
+					break
+				}
+			}
+			iNdEx -= sizeOfWire
+			skippy, err := skipMapreduce(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	return nil
+}
+func (m *ReducerRequest) Unmarshal(data []byte) error {
+	l := len(data)
+	iNdEx := 0
+	for iNdEx < l {
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := data[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Arr", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := data[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Arr = append(m.Arr, &KvsPair{})
+			if err := m.Arr[len(m.Arr)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			var sizeOfWire int
+			for {
+				sizeOfWire++
+				wire >>= 7
+				if wire == 0 {
+					break
+				}
+			}
+			iNdEx -= sizeOfWire
+			skippy, err := skipMapreduce(data[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	return nil
+}
 func (m *ReducerResponse) Unmarshal(data []byte) error {
 	l := len(data)
 	iNdEx := 0
@@ -369,47 +528,28 @@ func (m *ReducerResponse) Unmarshal(data []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Arr", wireType)
 			}
-			var stringLen uint64
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if iNdEx >= l {
 					return io.ErrUnexpectedEOF
 				}
 				b := data[iNdEx]
 				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			postIndex := iNdEx + int(stringLen)
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Key = string(data[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
+			m.Arr = append(m.Arr, &KvPair{})
+			if err := m.Arr[len(m.Arr)-1].Unmarshal(data[iNdEx:postIndex]); err != nil {
+				return err
 			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := data[iNdEx]
-				iNdEx++
-				stringLen |= (uint64(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			postIndex := iNdEx + int(stringLen)
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Value = string(data[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			var sizeOfWire int
@@ -661,7 +801,7 @@ func skipMapreduce(data []byte) (n int, err error) {
 	}
 	panic("unreachable")
 }
-func (m *MapperRequest) Size() (n int) {
+func (m *KvPair) Size() (n int) {
 	var l int
 	_ = l
 	l = len(m.Key)
@@ -675,21 +815,7 @@ func (m *MapperRequest) Size() (n int) {
 	return n
 }
 
-func (m *MapperResponse) Size() (n int) {
-	var l int
-	_ = l
-	l = len(m.Key)
-	if l > 0 {
-		n += 1 + l + sovMapreduce(uint64(l))
-	}
-	l = len(m.Value)
-	if l > 0 {
-		n += 1 + l + sovMapreduce(uint64(l))
-	}
-	return n
-}
-
-func (m *ReducerRequest) Size() (n int) {
+func (m *KvsPair) Size() (n int) {
 	var l int
 	_ = l
 	l = len(m.Key)
@@ -705,16 +831,50 @@ func (m *ReducerRequest) Size() (n int) {
 	return n
 }
 
+func (m *MapperRequest) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.Arr) > 0 {
+		for _, e := range m.Arr {
+			l = e.Size()
+			n += 1 + l + sovMapreduce(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *MapperResponse) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.Arr) > 0 {
+		for _, e := range m.Arr {
+			l = e.Size()
+			n += 1 + l + sovMapreduce(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *ReducerRequest) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.Arr) > 0 {
+		for _, e := range m.Arr {
+			l = e.Size()
+			n += 1 + l + sovMapreduce(uint64(l))
+		}
+	}
+	return n
+}
+
 func (m *ReducerResponse) Size() (n int) {
 	var l int
 	_ = l
-	l = len(m.Key)
-	if l > 0 {
-		n += 1 + l + sovMapreduce(uint64(l))
-	}
-	l = len(m.Value)
-	if l > 0 {
-		n += 1 + l + sovMapreduce(uint64(l))
+	if len(m.Arr) > 0 {
+		for _, e := range m.Arr {
+			l = e.Size()
+			n += 1 + l + sovMapreduce(uint64(l))
+		}
 	}
 	return n
 }
@@ -759,7 +919,7 @@ func sovMapreduce(x uint64) (n int) {
 func sozMapreduce(x uint64) (n int) {
 	return sovMapreduce(uint64((x << 1) ^ uint64((int64(x) >> 63))))
 }
-func (m *MapperRequest) Marshal() (data []byte, err error) {
+func (m *KvPair) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -769,7 +929,7 @@ func (m *MapperRequest) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *MapperRequest) MarshalTo(data []byte) (n int, err error) {
+func (m *KvPair) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -789,7 +949,7 @@ func (m *MapperRequest) MarshalTo(data []byte) (n int, err error) {
 	return i, nil
 }
 
-func (m *MapperResponse) Marshal() (data []byte, err error) {
+func (m *KvsPair) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
 	n, err := m.MarshalTo(data)
@@ -799,37 +959,7 @@ func (m *MapperResponse) Marshal() (data []byte, err error) {
 	return data[:n], nil
 }
 
-func (m *MapperResponse) MarshalTo(data []byte) (n int, err error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.Key) > 0 {
-		data[i] = 0xa
-		i++
-		i = encodeVarintMapreduce(data, i, uint64(len(m.Key)))
-		i += copy(data[i:], m.Key)
-	}
-	if len(m.Value) > 0 {
-		data[i] = 0x12
-		i++
-		i = encodeVarintMapreduce(data, i, uint64(len(m.Value)))
-		i += copy(data[i:], m.Value)
-	}
-	return i, nil
-}
-
-func (m *ReducerRequest) Marshal() (data []byte, err error) {
-	size := m.Size()
-	data = make([]byte, size)
-	n, err := m.MarshalTo(data)
-	if err != nil {
-		return nil, err
-	}
-	return data[:n], nil
-}
-
-func (m *ReducerRequest) MarshalTo(data []byte) (n int, err error) {
+func (m *KvsPair) MarshalTo(data []byte) (n int, err error) {
 	var i int
 	_ = i
 	var l int
@@ -858,6 +988,96 @@ func (m *ReducerRequest) MarshalTo(data []byte) (n int, err error) {
 	return i, nil
 }
 
+func (m *MapperRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *MapperRequest) MarshalTo(data []byte) (n int, err error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Arr) > 0 {
+		for _, msg := range m.Arr {
+			data[i] = 0xa
+			i++
+			i = encodeVarintMapreduce(data, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(data[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *MapperResponse) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *MapperResponse) MarshalTo(data []byte) (n int, err error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Arr) > 0 {
+		for _, msg := range m.Arr {
+			data[i] = 0xa
+			i++
+			i = encodeVarintMapreduce(data, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(data[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *ReducerRequest) Marshal() (data []byte, err error) {
+	size := m.Size()
+	data = make([]byte, size)
+	n, err := m.MarshalTo(data)
+	if err != nil {
+		return nil, err
+	}
+	return data[:n], nil
+}
+
+func (m *ReducerRequest) MarshalTo(data []byte) (n int, err error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Arr) > 0 {
+		for _, msg := range m.Arr {
+			data[i] = 0xa
+			i++
+			i = encodeVarintMapreduce(data, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(data[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
 func (m *ReducerResponse) Marshal() (data []byte, err error) {
 	size := m.Size()
 	data = make([]byte, size)
@@ -873,17 +1093,17 @@ func (m *ReducerResponse) MarshalTo(data []byte) (n int, err error) {
 	_ = i
 	var l int
 	_ = l
-	if len(m.Key) > 0 {
-		data[i] = 0xa
-		i++
-		i = encodeVarintMapreduce(data, i, uint64(len(m.Key)))
-		i += copy(data[i:], m.Key)
-	}
-	if len(m.Value) > 0 {
-		data[i] = 0x12
-		i++
-		i = encodeVarintMapreduce(data, i, uint64(len(m.Value)))
-		i += copy(data[i:], m.Value)
+	if len(m.Arr) > 0 {
+		for _, msg := range m.Arr {
+			data[i] = 0xa
+			i++
+			i = encodeVarintMapreduce(data, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(data[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
 	}
 	return i, nil
 }
@@ -987,96 +1207,6 @@ func encodeVarintMapreduce(data []byte, offset int, v uint64) int {
 	return offset + 1
 }
 
-// Client API for Mapper service
-
-type MapperClient interface {
-	GetEmitResult(ctx context.Context, in *MapperRequest, opts ...grpc.CallOption) (Mapper_GetEmitResultClient, error)
-}
-
-type mapperClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewMapperClient(cc *grpc.ClientConn) MapperClient {
-	return &mapperClient{cc}
-}
-
-func (c *mapperClient) GetEmitResult(ctx context.Context, in *MapperRequest, opts ...grpc.CallOption) (Mapper_GetEmitResultClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Mapper_serviceDesc.Streams[0], c.cc, "/proto.Mapper/GetEmitResult", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &mapperGetEmitResultClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Mapper_GetEmitResultClient interface {
-	Recv() (*MapperResponse, error)
-	grpc.ClientStream
-}
-
-type mapperGetEmitResultClient struct {
-	grpc.ClientStream
-}
-
-func (x *mapperGetEmitResultClient) Recv() (*MapperResponse, error) {
-	m := new(MapperResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-// Server API for Mapper service
-
-type MapperServer interface {
-	GetEmitResult(*MapperRequest, Mapper_GetEmitResultServer) error
-}
-
-func RegisterMapperServer(s *grpc.Server, srv MapperServer) {
-	s.RegisterService(&_Mapper_serviceDesc, srv)
-}
-
-func _Mapper_GetEmitResult_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(MapperRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(MapperServer).GetEmitResult(m, &mapperGetEmitResultServer{stream})
-}
-
-type Mapper_GetEmitResultServer interface {
-	Send(*MapperResponse) error
-	grpc.ServerStream
-}
-
-type mapperGetEmitResultServer struct {
-	grpc.ServerStream
-}
-
-func (x *mapperGetEmitResultServer) Send(m *MapperResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-var _Mapper_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.Mapper",
-	HandlerType: (*MapperServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "GetEmitResult",
-			Handler:       _Mapper_GetEmitResult_Handler,
-			ServerStreams: true,
-		},
-	},
-}
-
 // Client API for MapperStream service
 
 type MapperStreamClient interface {
@@ -1168,96 +1298,6 @@ var _MapperStream_serviceDesc = grpc.ServiceDesc{
 			Handler:       _MapperStream_GetStreamEmitResult_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
-		},
-	},
-}
-
-// Client API for Reducer service
-
-type ReducerClient interface {
-	GetCollectResult(ctx context.Context, in *ReducerRequest, opts ...grpc.CallOption) (Reducer_GetCollectResultClient, error)
-}
-
-type reducerClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewReducerClient(cc *grpc.ClientConn) ReducerClient {
-	return &reducerClient{cc}
-}
-
-func (c *reducerClient) GetCollectResult(ctx context.Context, in *ReducerRequest, opts ...grpc.CallOption) (Reducer_GetCollectResultClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_Reducer_serviceDesc.Streams[0], c.cc, "/proto.Reducer/GetCollectResult", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &reducerGetCollectResultClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Reducer_GetCollectResultClient interface {
-	Recv() (*ReducerResponse, error)
-	grpc.ClientStream
-}
-
-type reducerGetCollectResultClient struct {
-	grpc.ClientStream
-}
-
-func (x *reducerGetCollectResultClient) Recv() (*ReducerResponse, error) {
-	m := new(ReducerResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-// Server API for Reducer service
-
-type ReducerServer interface {
-	GetCollectResult(*ReducerRequest, Reducer_GetCollectResultServer) error
-}
-
-func RegisterReducerServer(s *grpc.Server, srv ReducerServer) {
-	s.RegisterService(&_Reducer_serviceDesc, srv)
-}
-
-func _Reducer_GetCollectResult_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ReducerRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(ReducerServer).GetCollectResult(m, &reducerGetCollectResultServer{stream})
-}
-
-type Reducer_GetCollectResultServer interface {
-	Send(*ReducerResponse) error
-	grpc.ServerStream
-}
-
-type reducerGetCollectResultServer struct {
-	grpc.ServerStream
-}
-
-func (x *reducerGetCollectResultServer) Send(m *ReducerResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-var _Reducer_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "proto.Reducer",
-	HandlerType: (*ReducerServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "GetCollectResult",
-			Handler:       _Reducer_GetCollectResult_Handler,
-			ServerStreams: true,
 		},
 	},
 }
