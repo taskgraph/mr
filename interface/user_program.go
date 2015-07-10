@@ -37,6 +37,7 @@ func (t *workerTask) startNewUserServer(cmdline []string) {
 		head := parts[1]
 		parts = parts[2:len(parts)]
 		cmd := exec.Command(head, parts...)
+		log.Println(head, parts)
 		if background == "b" {
 			err := cmd.Start()
 			if err != nil {

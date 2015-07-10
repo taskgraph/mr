@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	address     = "localhost" //"192.168.59.103"
+	address     = "localhost"//"192.168.59.103" //"192.168.59.103"
 	defaultName = "world"
 )
 
@@ -73,7 +73,7 @@ func main() {
 	stream.Send(&pb.MapperRequest{b})
 
 	stream.Send(&pb.MapperRequest{})
-	// stream.CloseSend()
+ stream.CloseSend()
 	<-waitc
 
 }

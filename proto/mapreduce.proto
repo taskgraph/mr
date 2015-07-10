@@ -1,6 +1,11 @@
 syntax = "proto3";
 
-package proto;
+package mapreduce;
+
+option java_multiple_files = true;
+option java_package = "mapreduce";
+option java_outer_classname = "MapreduceProto";
+
 
 message KvPair {
   string key = 1;
@@ -49,7 +54,6 @@ message WorkConfigResponse {
   repeated string key = 1;
   repeated string value = 2;
 }
-
 
 service Worker {
 }
