@@ -123,6 +123,7 @@ func (t *workerTask) mapperProcedure(ctx context.Context, workID string, workCon
 	// stop user program grpc client
 	stream.Send(&pb.MapperRequest{buf})
 	stream.CloseSend()
+	t.logger.Println("Send finshed")
 	<-waitc
 	//flush output result
 	for i = 0; i < t.config.ReducerNum; i++ {

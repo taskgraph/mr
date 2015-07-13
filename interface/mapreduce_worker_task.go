@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc"
 )
 
-const bufferSize = 20
+const bufferSize = 5000
 
 type workerTask struct {
 	framework          taskgraph.Framework
