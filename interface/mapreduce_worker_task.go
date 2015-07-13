@@ -117,7 +117,7 @@ func (t *workerTask) processWork(ctx context.Context, fromID uint64, method stri
 	}
 
 	// start user grpc server by cmd line,
-	go t.startNewUserServer(workConfig.UserProgram)
+	t.startNewUserServer(workConfig.UserProgram)
 
 	t.logger.Println("begin process work", workConfig)
 	t.logger.Println(workConfig.WorkType)
