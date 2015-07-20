@@ -1,0 +1,13 @@
+Mapper Config:
+{
+	"FileSystem" : "Azure"/"Local",
+	"AzureAccountName" : "Name"
+	"AzureAccountKey" : "Password",
+	"mapperNum" : "Number",
+	"reducerNum" : "Number", 
+	"workerNum" : "Number",
+	"InputFile" : [a set of input file path],
+	"TemporaryPath" : "a path which store the temporary result",
+	"dockerImage" : "DockerImageName",
+	"exposePort" : "Port",
+}

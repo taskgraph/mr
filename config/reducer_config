@@ -1,0 +1,11 @@
+Reducer Config:
+{
+	"FileSystem" : "Azure"/"Local",
+	"mapperNum" : "Number",
+	"reducerNum" : "Number", 	
+	"workerNum" : "Number",
+	"OutputPath" : "a path which store the reducer result",
+	"TemporaryPath" : "a path which store the temporary result",
+	"dockerImage" : "DockerImageName",
+	"exposePort" : "Port",
+}
