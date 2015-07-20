@@ -115,10 +115,8 @@ func (t *workerTask) processWork(ctx context.Context, fromID uint64, method stri
 			workConfig.SupplyContent = strings.Split(resp.Value[i], delim)
 		}
 	}
-
 	// start user grpc server by cmd line,
 	t.startNewUserServer(workConfig.UserProgram)
-
 	t.logger.Println("begin process work", workConfig)
 	t.logger.Println(workConfig.WorkType)
 	// Determined by the work type, start relative processing procedure

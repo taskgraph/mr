@@ -17,7 +17,7 @@ import (
 
 // Input files defined in "input($mapperTaskID).txt"
 func main() {
-	programType := flag.String("type", "", "(c) controller, (m) mapper, (s) shuffle, or (r) reducer")
+	programType := flag.String("type", "", "(c) controller, (m) mapper, (s) shuffle, or (r) redu er")
 	job := flag.String("job", "mapreduce+reducer", "job name")
 	mapperNum := flag.Int("mapperNum", 5, "mapperNum")
 	WorkerNum := flag.Int("WorkerNum", 3, "WorkerNum")

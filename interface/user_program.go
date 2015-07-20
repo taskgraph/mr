@@ -1,9 +1,10 @@
 package mapreduce
 
 import (
-	"log"
 	"os/exec"
 	"strings"
+	"log"
+	"io/ioutil"
 
 	pb "../proto"
 	"google.golang.org/grpc"
@@ -37,16 +38,30 @@ func (t *workerTask) startNewUserServer(cmdline []string) {
 		head := parts[1]
 		parts = parts[2:len(parts)]
 		cmd := exec.Command(head, parts...)
-		log.Println(head, parts)
+		t.logger.Println(head, parts)
 		if background == "b" {
 			err := cmd.Start()
+			log.Println("background", head, parts, err)
 			if err != nil {
-				log.Println(err)
+				t.logger.Fatalln("background ", head, parts, err)
+			}
+		} else if background == "w" {
+			stdout, _ := cmd.StdoutPipe()
+			err := cmd.Start()
+			if err != nil {
+				t.logger.Fatalln("wait", head, parts, err)
+			}
+			d, _ := ioutil.ReadAll(stdout)
+			err = cmd.Wait()
+			log.Println(head, parts, string(d))
+			log.Println("run", head, parts, err)
+			if err != nil {
+				t.logger.Fatalln(err)
 			}
 		} else {
 			err := cmd.Run()
 			if err != nil {
-				log.Println(err)
+				t.logger.Fatalln("run", head, parts, err)
 			}
 		}
 	}

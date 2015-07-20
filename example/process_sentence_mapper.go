@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net"
+	"fmt"
 	"os"
 	"strconv"
 
@@ -19,8 +20,8 @@ import (
 func main() {
 	programType := flag.String("type", "", "(c) controller, (m) mapper, (s) shuffle, or (r) reducer")
 	job := flag.String("job", "mapreduce+mapper", "job name")
-	mapperNum := flag.Int("mapperNum", 1, "mapperNum")
-	WorkerNum := flag.Int("WorkerNum", 1, "WorkerNum")
+	mapperNum := flag.Int("mapperNum", 5, "mapperNum")
+	WorkerNum := flag.Int("WorkerNum", 5, "WorkerNum")
 	reducerNum := flag.Int("reducerNum", 10, "reducerNum")
 	//      azureAccountName := flag.String("azureAccountName", "spluto", "azureAccountName")
 	azureAccountKey := flag.String("azureAccountKey", "a", "azureAccountKey")
@@ -39,20 +40,22 @@ func main() {
 	mapperWorkDir := make([]mapreduce.WorkConfig, 0)
 
 	for inputM := 1; inputM <= *mapperNum; inputM++ {
-		// w := fmt.Sprintf("%03d", inputM+11)
-		inputFile := "eee1.txt"
+		w := fmt.Sprintf("%03d", inputM+10)
+		inputFile := "/home/xwu/Desktop/processSentence/mr/example/pagesNew" + w + ".txt"
 		newWork := mapreduce.WorkConfig{}
 		newWork.InputFilePath = []string{inputFile}
 		newWork.OutputFilePath = []string{"./mapreducerprocesstemporaryresult"}
 		newWork.UserProgram = []string{
-			"c docker stop mr" + strconv.Itoa(inputM),
-			"c docker rm mr" + strconv.Itoa(inputM),
-			"b docker run -d -p " +
+			"w docker stop mr" + strconv.Itoa(inputM),
+			"w docker rm mr" + strconv.Itoa(inputM),
+			"w docker run -d -p " +
 				strconv.Itoa(20000+inputM) +
 				":10000 --name=mr" +
 				strconv.Itoa(inputM) +
 				" plutoshe/dockerhubautobuild:java",
 		}
+
+		
 		// newWork.UserProgram = []string{
 		// 	"b ../sample_user_server_go/processSentence/processSentence_server -type m -port " + strconv.Itoa(40000+inputM),
 		// }
