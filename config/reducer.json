@@ -1,18 +1,23 @@
 {
   "Type" : "Reducer",
 	"ETCDBIN" : "/usr/local/golib/etcd-v2.0.5-darwin-amd64",
-	"AppName" : "reducerEx",
-   	"FSType" : "Local",
-   	"AzureConfig" : {
-   		"AzureAccount" : "a",
-   		"AzureKey" : "b"
-   		},
-    "MapperWorkNum" : 5,
-    "ReducerNum" : 3,
-    "WorkerNum" : 2,
-    "Tolerance" : 0,
-    "DockerIp" : "192.168.59.103",
-    "DockerImage" : "plutoshe/dockerhubautobuild:reducer",
-    "TmpResultDir" : "./mapreducerprocesstemporaryresult",
-    "OutputDir" : "./result"
+  "AppName" : "reducerEx",
+  
+ 	"FSType" : "Local",
+ 	"AzureConfig" : {
+ 		"AzureAccount" : "a",
+ 		"AzureKey" : "b"
+ 	},
+
+  "MapperWorkNum" : 5,
+  "ReducerNum" : 3,
+  "WorkerNum" : 2,
+  "Tolerance" : 0,
+  
+  "TmpResultDir" : "./mapreducerprocesstemporaryresult",
+  "OutputDir" : "./result",
+
+  "DockerImage" : "plutoshe/dockerhubautobuild:reducer",
+  "DockerIp" : "192.168.59.103",
+  "DockerPort" : "10000"
 }

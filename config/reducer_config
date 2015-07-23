@@ -1,11 +1,26 @@
 Reducer Config:
 {
-	"FileSystem" : "Azure"/"Local",
-	"mapperNum" : "Number",
-	"reducerNum" : "Number", 	
-	"workerNum" : "Number",
-	"OutputPath" : "a path which store the reducer result",
-	"TemporaryPath" : "a path which store the temporary result",
-	"dockerImage" : "DockerImageName",
-	"exposePort" : "Port",
+	//Mapper application configuration 
+	"Type" : "Reducer", // indicate application type
+	"ETCDBIN" : "etcd executive file path"
+	"AppName" : "appName", // give the name of mapper in etcd 
+
+	// Indicate filesystem type and details
+	"FSType" : "Azure"/"Local", 
+	"AzureConfig" : { 
+		"AzureAccount" : "accountName", 
+		"AzureKey" : "accountKey"
+	}
+
+	"MapperWorkNum" : Number,
+	"ReducerNum" : Number,
+	"WorkerNum" : Number, 
+	"Tolerance" : Number,
+	
+	"TmpResultDir" : "a path which store the temporary result",
+
+	//Docker user prgram configuration
+	"DockerImage" : "DockerImageName",
+	"DockerIp" : "DockerIp",
+	"DockerPort" : "DockerPort" //expose port
 }

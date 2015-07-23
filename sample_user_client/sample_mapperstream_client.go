@@ -12,12 +12,12 @@ import (
 )
 
 const (
-	address     = "localhost"//"192.168.59.103" //"192.168.59.103"
+	address     = "192.168.59.103" //"192.168.59.103"
 	defaultName = "world"
 )
 
 var (
-	port = flag.Int("port", 10000, "The server port")
+	port = flag.Int("port", 20000, "The server port")
 )
 
 func main() {
@@ -73,7 +73,7 @@ func main() {
 	stream.Send(&pb.MapperRequest{b})
 
 	stream.Send(&pb.MapperRequest{})
- stream.CloseSend()
+	stream.CloseSend()
 	<-waitc
 
 }

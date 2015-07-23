@@ -43,6 +43,7 @@ type Configuration struct {
 	TmpResultDir  string
 	DockerImage   string
 	DockerIp      string
+	DockerPort    string
 }
 
 var (
@@ -88,7 +89,9 @@ func mapperWorkInit() {
 			"wc docker rm mr" + strconv.Itoa(i),
 			"ww docker run -d -p " +
 				strconv.Itoa(20000+i) +
-				":10000 --name=mr" +
+				":" +
+				config.DockerPort +
+				" --name=mr" +
 				strconv.Itoa(i) +
 				" " +
 				config.DockerImage,
@@ -114,7 +117,9 @@ func reducerWorkInit() {
 			"wc docker rm mr" + strconv.FormatUint(i, 10),
 			"ww docker run -d -p " +
 				strconv.FormatUint(i+20000, 10) +
-				":10000 --name=mr" +
+				":" +
+				config.DockerPort +
+				" --name=mr" +
 				strconv.FormatUint(i, 10) +
 				" " +
 				config.DockerImage,

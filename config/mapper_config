@@ -1,13 +1,28 @@
 Mapper Config:
 {
-	"FileSystem" : "Azure"/"Local",
-	"AzureAccountName" : "Name"
-	"AzureAccountKey" : "Password",
-	"mapperNum" : "Number",
-	"reducerNum" : "Number", 
-	"workerNum" : "Number",
-	"InputFile" : [a set of input file path],
-	"TemporaryPath" : "a path which store the temporary result",
-	"dockerImage" : "DockerImageName",
-	"exposePort" : "Port",
+	//Mapper application configuration 
+	"Type" : "Mapper", // indicate application type
+	"ETCDBIN" : "etcd executive file path"
+	"AppName" : "appName", // give the name of mapper in etcd 
+
+	"InputFile" : [a set of input file path], 
+
+	// Indicate filesystem type and details
+	"FSType" : "Azure"/"Local", 
+	"AzureConfig" : { 
+		"AzureAccount" : "accountName", 
+		"AzureKey" : "accountKey"
+	}
+
+
+	"ReducerNum" : Number,
+	"WorkerNum" : Number, 
+	"Tolerance" : 0,
+	
+	"TmpResultDir" : "a path which store the temporary result",
+
+	//Docker user prgram configuration
+	"DockerImage" : "DockerImageName",
+	"DockerIp" : "DockerIp",
+	"DockerPort" : "DockerPort" //expose port
 }
