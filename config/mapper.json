@@ -1,17 +1,17 @@
 {
+  "Type" : "Mapper",
 	"ETCDBIN" : "/usr/local/golib/etcd-v2.0.5-darwin-amd64",
 	"AppName" : "mapperEx",
-    "InputFiles" : ["eee.txt","eee.txt", "eee.txt"],
+    "InputFiles" : ["eee.txt","eee.txt", "eee.txt", "eee.txt", "eee.txt"],
    	"FSType" : "Local",
    	"AzureConfig" : {
    		"AzureAccount" : "a",
    		"AzureKey" : "b"
    		},
-    "MapperNum" : 2,
-    "ReducerNum" : 1,
-    "WorkerNum" : 2,
+    "ReducerNum" : 3,
+    "WorkerNum" : 3,
     "Tolerance" : 0,
     "DockerIp" : "192.168.59.103",
-    "DockerImage" : "plutoshe/dockerhubautobuild:latest",
+    "DockerImage" : "plutoshe/dockerhubautobuild:mapper",
     "TmpResultDir" : "./mapreducerprocesstemporaryresult"
 }

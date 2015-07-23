@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -28,27 +29,32 @@ type AzureFsConfiguration struct {
 }
 
 type Configuration struct {
-	ETCDBIN      string
-	AppName      string
-	FSType       string
-	AzureConfig  AzureFsConfiguration
-	InputFiles   []string
-	MapperNum    uint64
-	WorkerNum    uint64
-	ReducerNum   uint64
-	Tolerance    uint64
-	TmpResultDir string
-	DockerImage  string
-	DockerIp     string
+	Type          string
+	ETCDBIN       string
+	AppName       string
+	FSType        string
+	AzureConfig   AzureFsConfiguration
+	OutputDir     string
+	InputFiles    []string
+	MapperWorkNum uint64
+	WorkerNum     uint64
+	ReducerNum    uint64
+	Tolerance     uint64
+	TmpResultDir  string
+	DockerImage   string
+	DockerIp      string
 }
 
 var (
 	fsClient       filesystem.Client
 	mapperWorkDir  []mapreduce.WorkConfig
+	reducerWorkDir []mapreduce.WorkConfig
 	mapperConfig   mapreduce.MapreduceConfig
+	reducerConfig  mapreduce.MapreduceConfig
 	config         Configuration
 	err            error
 	finshedProgram chan struct{}
+	sourceConfig   = flag.String("source", "", "The configuration file")
 )
 
 func fsInit() {
@@ -71,56 +77,67 @@ func fsInit() {
 	}
 }
 
-func workInit() {
+func mapperWorkInit() {
 	mapperWorkDir = make([]mapreduce.WorkConfig, 0)
-	for inputM, inputFile := range config.InputFiles {
+	for i, inputFile := range config.InputFiles {
 		newWork := mapreduce.WorkConfig{}
 		newWork.InputFilePath = []string{inputFile}
 		newWork.OutputFilePath = []string{config.TmpResultDir}
 		newWork.UserProgram = []string{
-			"wc docker stop mr" + strconv.Itoa(inputM),
-			"wc docker rm mr" + strconv.Itoa(inputM),
+			"wc docker stop mr" + strconv.Itoa(i),
+			"wc docker rm mr" + strconv.Itoa(i),
 			"ww docker run -d -p " +
-				strconv.Itoa(20000+inputM) +
+				strconv.Itoa(20000+i) +
 				":10000 --name=mr" +
-				strconv.Itoa(inputM) +
+				strconv.Itoa(i) +
 				" " +
 				config.DockerImage,
 		}
 
-		newWork.UserServerAddress = config.DockerIp + ":" + strconv.Itoa(20000+inputM)
+		newWork.UserServerAddress = config.DockerIp + ":" + strconv.Itoa(20000+i)
 		newWork.WorkType = "Mapper"
 		newWork.SupplyContent = []string{""}
 		mapperWorkDir = append(mapperWorkDir, newWork)
 	}
 }
 
-func clean() {
-	cmd := exec.Command(config.ETCDBIN+"/etcdctl", "rm", "--recursive", config.AppName+"/")
-	err := cmd.Run()
-	if err != nil {
-		log.Fatal("clean failed ", err)
+func reducerWorkInit() {
+	reducerWorkDir = make([]mapreduce.WorkConfig, 0)
+	for i := uint64(0); i < config.ReducerNum; i++ {
+		newWork := mapreduce.WorkConfig{}
+		inputFile := config.TmpResultDir
+		newWork.InputFilePath = []string{inputFile}
+		newWork.OutputFilePath = []string{config.OutputDir + "/reducerOutput" + strconv.FormatUint(i, 10)}
+
+		newWork.UserProgram = []string{
+			"wc docker stop mr" + strconv.FormatUint(i, 10),
+			"wc docker rm mr" + strconv.FormatUint(i, 10),
+			"ww docker run -d -p " +
+				strconv.FormatUint(i+20000, 10) +
+				":10000 --name=mr" +
+				strconv.FormatUint(i, 10) +
+				" " +
+				config.DockerImage,
+		}
+		newWork.UserServerAddress = config.DockerIp + ":" + strconv.FormatUint(i+20000, 10)
+		newWork.WorkType = "Reducer"
+		newWork.SupplyContent = []string{strconv.FormatUint(config.MapperWorkNum, 10) + " " + strconv.FormatUint(i, 10)}
+		reducerWorkDir = append(reducerWorkDir, newWork)
 	}
-	// err := cmd.Start()
-	// if err != nil {
-	// 	log.Fatal("clean failed ", err)
-	// }
-	// err = cmd.Wait()
-	// if err != nil {
-	// 	log.Fatal("clean failed ", err)
-	// }
 }
 
-func taskInit() {
+func clean() {
+	cmd := exec.Command(config.ETCDBIN+"/etcdctl", "rm", "--recursive", config.AppName+"/")
+	cmd.Run()
+}
+
+func mapperTaskInit() {
 	etcdURLs := []string{"http://localhost:4001"}
 	clean()
 	fsInit()
-	workInit()
-	if config.MapperNum < config.WorkerNum {
-		config.WorkerNum = config.MapperNum
-	}
+	mapperWorkInit()
+
 	mapperConfig = mapreduce.MapreduceConfig{
-		MapperNum:  config.MapperNum,
 		ReducerNum: config.ReducerNum,
 		WorkerNum:  config.WorkerNum,
 
@@ -131,7 +148,24 @@ func taskInit() {
 	}
 }
 
-func taskExec(programType string) {
+func reducerTaskInit() {
+	etcdURLs := []string{"http://localhost:4001"}
+	clean()
+	fsInit()
+	reducerWorkInit()
+
+	reducerConfig = mapreduce.MapreduceConfig{
+		ReducerNum: config.ReducerNum,
+		WorkerNum:  config.WorkerNum,
+
+		AppName:          config.AppName,
+		EtcdURLs:         etcdURLs,
+		FilesystemClient: fsClient,
+		WorkDir:          reducerWorkDir,
+	}
+}
+
+func taskExec(programType string, taskConfig mapreduce.MapreduceConfig) {
 	ntask := uint64(config.WorkerNum) + 1
 	topoMaster := topo.NewFullTopologyOfMaster(uint64(config.WorkerNum) + 1)
 	topoNeighbors := topo.NewFullTopologyOfNeighbor(uint64(config.WorkerNum) + 1)
@@ -148,14 +182,14 @@ func taskExec(programType string) {
 	switch programType {
 	case "c":
 		log.Printf("controller")
-		controller := controller.New(mapperConfig.AppName, etcd.NewClient(mapperConfig.EtcdURLs), uint64(ntask), []string{"Prefix", "Suffix", "Master", "Slave"})
+		controller := controller.New(taskConfig.AppName, etcd.NewClient(taskConfig.EtcdURLs), uint64(ntask), []string{"Prefix", "Suffix", "Master", "Slave"})
 		controller.Start()
 		controller.WaitForJobDone()
 		close(finshedProgram)
 	case "t":
 		log.Printf("mapper task")
-		bootstrap := framework.NewBootStrap(mapperConfig.AppName, mapperConfig.EtcdURLs, createListener(), ll)
-		taskBuilder := &mapreduce.MapreduceTaskBuilder{MapreduceConfig: mapperConfig}
+		bootstrap := framework.NewBootStrap(taskConfig.AppName, taskConfig.EtcdURLs, createListener(), ll)
+		taskBuilder := &mapreduce.MapreduceTaskBuilder{MapreduceConfig: taskConfig}
 		bootstrap.SetTaskBuilder(taskBuilder)
 		bootstrap.AddLinkage("Master", topoMaster)
 		bootstrap.AddLinkage("Neighbors", topoNeighbors)
@@ -165,13 +199,26 @@ func taskExec(programType string) {
 	}
 }
 
-func taskConfig() {
-	taskInit()
+func mapperTaskConfig() {
+	mapperTaskInit()
 	finshedProgram = make(chan struct{}, 1)
-	go taskExec("c")
+	go taskExec("c", mapperConfig)
 	time.Sleep(2000 * time.Millisecond)
 	for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
-		go taskExec("t")
+		go taskExec("t", mapperConfig)
+	}
+
+	<-finshedProgram
+
+}
+
+func reducerTaskConfig() {
+	reducerTaskInit()
+	finshedProgram = make(chan struct{}, 1)
+	go taskExec("c", reducerConfig)
+	time.Sleep(2000 * time.Millisecond)
+	for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
+		go taskExec("t", reducerConfig)
 	}
 
 	<-finshedProgram
@@ -187,7 +234,11 @@ func createListener() net.Listener {
 }
 
 func main() {
-	file, _ := os.Open("mapper.json")
+	flag.Parse()
+	if *sourceConfig == "" {
+		log.Fatalf("Please specify a configuration file")
+	}
+	file, _ := os.Open(*sourceConfig)
 	decoder := json.NewDecoder(file)
 
 	config = Configuration{}
@@ -196,6 +247,13 @@ func main() {
 	if err != nil {
 		fmt.Println("error:", err)
 	}
+	fmt.Println(config)
+	if config.Type == "Mapper" {
+		mapperTaskConfig()
+	} else if config.Type == "Reducer" {
+		reducerTaskConfig()
+	} else {
+		log.Println("Pleas specify the application type in configuration file")
+	}
 
-	taskConfig()
 }
