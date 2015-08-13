@@ -18,6 +18,7 @@ Reducer Config:
 	"Tolerance" : Number,
 	
 	"TmpResultDir" : "a path which store the temporary result",
+	"OutputFile" : "a path storing final reducer result"
 
 	//Docker user prgram configuration
 	"DockerImage" : "DockerImageName",

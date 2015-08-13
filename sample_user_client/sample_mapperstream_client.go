@@ -58,9 +58,9 @@ func main() {
 	}()
 
 	var b []*pb.KvPair
-	b = append(b, &pb.KvPair{"a b c d e 。f g，", ""})
-	b = append(b, &pb.KvPair{"a b c d e 。f g，", ""})
-	b = append(b, &pb.KvPair{"a b c d e 。f g，", ""})
+	b = append(b, &pb.KvPair{"受到法律框架酸辣粉谁，是否。", ""})
+	b = append(b, &pb.KvPair{"sdf wedfsdf. . ， 。d.f.s！", ""})
+	b = append(b, &pb.KvPair{"地方！ dfg。 sdf。 sdf。 sdf， sdf，", ""})
 
 	stream.Send(&pb.MapperRequest{b})
 	stream.Send(&pb.MapperRequest{b})

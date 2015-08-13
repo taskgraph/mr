@@ -4,20 +4,23 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"time"
+
+	mapreduce "../../mr/interface"
+	// "github.com/Azure/azure-sdk-for-go/storage"
 
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/plutoshe/taskgraph/controller"
 	"github.com/plutoshe/taskgraph/example/topo"
 	"github.com/plutoshe/taskgraph/filesystem"
 	"github.com/plutoshe/taskgraph/framework"
-
-	mapreduce "../../mr/interface"
 )
 
 type AzureFsConfiguration struct {
@@ -56,13 +59,14 @@ var (
 	err            error
 	finshedProgram chan struct{}
 	sourceConfig   = flag.String("source", "", "The configuration file")
+	phase          = flag.String("phase", "", "The phase of application")
 )
 
 func fsInit() {
 	if config.FSType == "Azure" {
 		blobServiceBaseUrl := "core.chinacloudapi.cn"
 		apiVersion := "2014-02-14"
-		userHttps := true
+		userHttps := false
 		fsClient, err = filesystem.NewAzureClient(
 			config.AzureConfig.AzureAccount,
 			config.AzureConfig.AzureKey,
@@ -70,7 +74,11 @@ func fsInit() {
 			apiVersion,
 			userHttps,
 		)
-
+		if err != nil {
+			log.Fatalln("MapReduce : get mapreduce filesystem client writer failed, ", err)
+		}
+		// tmpWrite, _ := fsClient.OpenWriteCloser("tmptest0123456789012345678901234/aaa")
+		// tmpWrite.Write([]byte("受到法律框架酸辣粉谁，是否。\nsdf wedfsdf. . ， 。d.f.s！\n地方！ dfg。 sdf。 sdf。 sdf， sdf，"))
 	}
 	if config.FSType == "Local" {
 		fsClient = filesystem.NewLocalFSClient()
@@ -129,11 +137,16 @@ func reducerWorkInit() {
 		newWork.SupplyContent = []string{strconv.FormatUint(config.MapperWorkNum, 10) + " " + strconv.FormatUint(i, 10)}
 		reducerWorkDir = append(reducerWorkDir, newWork)
 	}
+
 }
 
 func clean() {
+	log.Println(config.ETCDBIN + "/etcdctl")
 	cmd := exec.Command(config.ETCDBIN+"/etcdctl", "rm", "--recursive", config.AppName+"/")
-	cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		log.Fatal("dddd", err)
+	}
 }
 
 func mapperTaskInit() {
@@ -183,14 +196,15 @@ func taskExec(programType string, taskConfig mapreduce.MapreduceConfig) {
 	// 	os.Exit(-1)
 	// }
 	ll = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
-
+	log.Println(taskConfig)
+	log.Println(taskConfig.AppName)
+	log.Println(taskConfig.EtcdURLs)
 	switch programType {
 	case "c":
 		log.Printf("controller")
 		controller := controller.New(taskConfig.AppName, etcd.NewClient(taskConfig.EtcdURLs), uint64(ntask), []string{"Prefix", "Suffix", "Master", "Slave"})
 		controller.Start()
-		controller.WaitForJobDone()
-		close(finshedProgram)
+		// controller.WaitForJobDone()
 	case "t":
 		log.Printf("mapper task")
 		bootstrap := framework.NewBootStrap(taskConfig.AppName, taskConfig.EtcdURLs, createListener(), ll)
@@ -204,30 +218,56 @@ func taskExec(programType string, taskConfig mapreduce.MapreduceConfig) {
 	}
 }
 
-func mapperTaskConfig() {
+func mapperTaskConfig(phase string) {
 	mapperTaskInit()
-	finshedProgram = make(chan struct{}, 1)
-	go taskExec("c", mapperConfig)
-	time.Sleep(2000 * time.Millisecond)
-	for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
-		go taskExec("t", mapperConfig)
-	}
+	switch phase {
+	case "c":
+		taskExec(phase, mapperConfig)
+	case "t":
+		taskExec(phase, mapperConfig)
+	case "i":
+		log.Println("in dispatching")
+		subCom := strings.Fields("run example.go -phase c -source " + *sourceConfig) // + " >./logfile/controller.log")
+		controllerProcess := exec.Command("go", subCom...)
+		stdout, _ := controllerProcess.StderrPipe()
+		log.Println(controllerProcess)
+		err := controllerProcess.Start()
 
-	<-finshedProgram
+		if err != nil {
+			log.Fatal(err)
+		}
+		d, _ := ioutil.ReadAll(stdout)
+		controllerProcess.Wait()
+
+		log.Println(string(d))
+		time.Sleep(2000 * time.Millisecond)
+		for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
+			subCom := strings.Fields("run example.go -phase t -source " + *sourceConfig + " >./logfile/task" + strconv.FormatUint(i, 10) + ".log")
+			log.Println(subCom)
+			taski := exec.Command("go", subCom...)
+			stdout, _ := taski.StderrPipe()
+			taski.Start()
+			d, _ := ioutil.ReadAll(stdout)
+			taski.Wait()
+			log.Println(string(d))
+		}
+
+	}
 
 }
 
-func reducerTaskConfig() {
-	reducerTaskInit()
-	finshedProgram = make(chan struct{}, 1)
-	go taskExec("c", reducerConfig)
-	time.Sleep(2000 * time.Millisecond)
-	for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
-		go taskExec("t", reducerConfig)
-	}
-
-	<-finshedProgram
-
+func reducerTaskConfig(phase string) {
+	// reducerTaskInit()
+	// switch phase {
+	// case "c", "t":
+	// 	taskExec("c", reducerConfig)
+	// case "i":
+	// 	exec.Command("go", "run example.go -phase c -source "+*sourceConfig).Run() //+" ->./logfile/controller.log").Run()
+	// 	time.Sleep(2000 * time.Millisecond)
+	// 	for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
+	// 		exec.Command("go", "run example.go -phase c -source "+*sourceConfig).Run() //+" ->./logfile/task"+strconv.FormatUint(i, 10)+".log").Run()
+	// 	}
+	// }
 }
 
 func createListener() net.Listener {
@@ -243,7 +283,11 @@ func main() {
 	if *sourceConfig == "" {
 		log.Fatalf("Please specify a configuration file")
 	}
+	if *phase == "" {
+		log.Fatalf("Please specify a phase(i/c/t) \n i : a initialize phase, \n c : a conctorller pahse, \n t : an offspring pahse.")
+	}
 	file, _ := os.Open(*sourceConfig)
+	defer file.Close()
 	decoder := json.NewDecoder(file)
 
 	config = Configuration{}
@@ -254,9 +298,9 @@ func main() {
 	}
 	fmt.Println(config)
 	if config.Type == "Mapper" {
-		mapperTaskConfig()
+		mapperTaskConfig(*phase)
 	} else if config.Type == "Reducer" {
-		reducerTaskConfig()
+		reducerTaskConfig(*phase)
 	} else {
 		log.Println("Pleas specify the application type in configuration file")
 	}
