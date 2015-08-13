@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -141,17 +140,15 @@ func reducerWorkInit() {
 }
 
 func clean() {
-	log.Println(config.ETCDBIN + "/etcdctl")
 	cmd := exec.Command(config.ETCDBIN+"/etcdctl", "rm", "--recursive", config.AppName+"/")
-	err := cmd.Run()
-	if err != nil {
-		log.Fatal("dddd", err)
-	}
+	cmd.Run()
 }
 
 func mapperTaskInit() {
 	etcdURLs := []string{"http://localhost:4001"}
-	clean()
+	if *phase == "i" {
+		clean()
+	}
 	fsInit()
 	mapperWorkInit()
 
@@ -168,7 +165,9 @@ func mapperTaskInit() {
 
 func reducerTaskInit() {
 	etcdURLs := []string{"http://localhost:4001"}
-	clean()
+	if *phase == "i" {
+		clean()
+	}
 	fsInit()
 	reducerWorkInit()
 
@@ -189,12 +188,6 @@ func taskExec(programType string, taskConfig mapreduce.MapreduceConfig) {
 	topoNeighbors := topo.NewFullTopologyOfNeighbor(uint64(config.WorkerNum) + 1)
 
 	var ll *log.Logger
-	// fmt.Println("logFilename=", logFilename)
-	// logFile, err := os.OpenFile(logFilename, os.O_RDWR|os.O_CREATE, 0777)
-	// if err != nil {
-	// 	fmt.Printf("open file error=%s\r\n", err.Error())
-	// 	os.Exit(-1)
-	// }
 	ll = log.New(os.Stdout, "", log.Ldate|log.Ltime|log.Lshortfile)
 	log.Println(taskConfig)
 	log.Println(taskConfig.AppName)
@@ -204,7 +197,7 @@ func taskExec(programType string, taskConfig mapreduce.MapreduceConfig) {
 		log.Printf("controller")
 		controller := controller.New(taskConfig.AppName, etcd.NewClient(taskConfig.EtcdURLs), uint64(ntask), []string{"Prefix", "Suffix", "Master", "Slave"})
 		controller.Start()
-		// controller.WaitForJobDone()
+		controller.WaitForJobDone()
 	case "t":
 		log.Printf("mapper task")
 		bootstrap := framework.NewBootStrap(taskConfig.AppName, taskConfig.EtcdURLs, createListener(), ll)
@@ -221,53 +214,74 @@ func taskExec(programType string, taskConfig mapreduce.MapreduceConfig) {
 func mapperTaskConfig(phase string) {
 	mapperTaskInit()
 	switch phase {
-	case "c":
-		taskExec(phase, mapperConfig)
-	case "t":
+	case "c", "t":
 		taskExec(phase, mapperConfig)
 	case "i":
 		log.Println("in dispatching")
-		subCom := strings.Fields("run example.go -phase c -source " + *sourceConfig) // + " >./logfile/controller.log")
+		controllerLog, err := os.Create("./logfile/controller.log")
+		subCom := strings.Fields("run example.go -phase c -source " + *sourceConfig)
 		controllerProcess := exec.Command("go", subCom...)
-		stdout, _ := controllerProcess.StderrPipe()
-		log.Println(controllerProcess)
-		err := controllerProcess.Start()
+		if err != nil {
+			log.Fatalln(err)
+		}
+		controllerProcess.Stdout = controllerLog
+		controllerProcess.Stderr = controllerLog
 
+		err = controllerProcess.Start()
 		if err != nil {
 			log.Fatal(err)
 		}
-		d, _ := ioutil.ReadAll(stdout)
-		controllerProcess.Wait()
-
-		log.Println(string(d))
 		time.Sleep(2000 * time.Millisecond)
 		for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
-			subCom := strings.Fields("run example.go -phase t -source " + *sourceConfig + " >./logfile/task" + strconv.FormatUint(i, 10) + ".log")
-			log.Println(subCom)
+			subCom := strings.Fields("run example.go -phase t -source " + *sourceConfig)
+			taskiLog, err := os.Create("./logfile/task" + strconv.FormatUint(i, 10) + ".log")
+			if err != nil {
+				log.Fatalln(err)
+			}
 			taski := exec.Command("go", subCom...)
-			stdout, _ := taski.StderrPipe()
-			taski.Start()
-			d, _ := ioutil.ReadAll(stdout)
-			taski.Wait()
-			log.Println(string(d))
-		}
+			taski.Stdout = taskiLog
+			taski.Stderr = taskiLog
 
+			taski.Start()
+		}
 	}
 
 }
 
 func reducerTaskConfig(phase string) {
-	// reducerTaskInit()
-	// switch phase {
-	// case "c", "t":
-	// 	taskExec("c", reducerConfig)
-	// case "i":
-	// 	exec.Command("go", "run example.go -phase c -source "+*sourceConfig).Run() //+" ->./logfile/controller.log").Run()
-	// 	time.Sleep(2000 * time.Millisecond)
-	// 	for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
-	// 		exec.Command("go", "run example.go -phase c -source "+*sourceConfig).Run() //+" ->./logfile/task"+strconv.FormatUint(i, 10)+".log").Run()
-	// 	}
-	// }
+	reducerTaskInit()
+	switch phase {
+	case "c", "t":
+		taskExec(phase, reducerConfig)
+	case "i":
+		log.Println("in dispatching")
+		controllerLog, err := os.Create("./logfile/controller.log")
+		subCom := strings.Fields("run example.go -phase c -source " + *sourceConfig)
+		controllerProcess := exec.Command("go", subCom...)
+		if err != nil {
+			log.Fatalln(err)
+		}
+		controllerProcess.Stdout = controllerLog
+		controllerProcess.Stderr = controllerLog
+
+		err = controllerProcess.Start()
+		if err != nil {
+			log.Fatal(err)
+		}
+		time.Sleep(2000 * time.Millisecond)
+		for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
+			subCom := strings.Fields("run example.go -phase t -source " + *sourceConfig)
+			taskiLog, err := os.Create("./logfile/task" + strconv.FormatUint(i, 10) + ".log")
+			if err != nil {
+				log.Fatalln(err)
+			}
+			taski := exec.Command("go", subCom...)
+			taski.Stdout = taskiLog
+			taski.Stderr = taskiLog
+
+			taski.Start()
+		}
+	}
 }
 
 func createListener() net.Listener {
