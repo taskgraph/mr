@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	mapreduce "../../mr/interface"
+	"github.com/plutoshe/mr/interface"
 	// "github.com/Azure/azure-sdk-for-go/storage"
 
 	"github.com/coreos/go-etcd/etcd"
@@ -58,6 +58,7 @@ var (
 	err            error
 	finshedProgram chan struct{}
 	sourceConfig   = flag.String("source", "", "The configuration file")
+	logDir         = flag.String("logdir", "./logdir", "the output log file")
 	phase          = flag.String("phase", "", "The phase of application")
 )
 
@@ -218,14 +219,19 @@ func mapperTaskConfig(phase string) {
 		taskExec(phase, mapperConfig)
 	case "i":
 		log.Println("in dispatching")
-		controllerLog, err := os.Create("./logfile/controller.log")
+
 		subCom := strings.Fields("run example.go -phase c -source " + *sourceConfig)
 		controllerProcess := exec.Command("go", subCom...)
-		if err != nil {
-			log.Fatalln(err)
+
+		if *logDir != "" {
+			os.Mkdir(*logDir, os.ModePerm)
+			controllerLog, err := os.Create(*logDir + "/controller.log")
+			if err != nil {
+				log.Fatalln(err)
+			}
+			controllerProcess.Stdout = controllerLog
+			controllerProcess.Stderr = controllerLog
 		}
-		controllerProcess.Stdout = controllerLog
-		controllerProcess.Stderr = controllerLog
 
 		err = controllerProcess.Start()
 		if err != nil {
@@ -234,13 +240,15 @@ func mapperTaskConfig(phase string) {
 		time.Sleep(2000 * time.Millisecond)
 		for i := uint64(0); i < 1+config.WorkerNum+config.Tolerance; i++ {
 			subCom := strings.Fields("run example.go -phase t -source " + *sourceConfig)
-			taskiLog, err := os.Create("./logfile/task" + strconv.FormatUint(i, 10) + ".log")
-			if err != nil {
-				log.Fatalln(err)
-			}
 			taski := exec.Command("go", subCom...)
-			taski.Stdout = taskiLog
-			taski.Stderr = taskiLog
+			if *logDir != "" {
+				taskiLog, err := os.Create(*logDir + "/task" + strconv.FormatUint(i, 10) + ".log")
+				if err != nil {
+					log.Fatalln(err)
+				}
+				taski.Stdout = taskiLog
+				taski.Stderr = taskiLog
+			}
 
 			taski.Start()
 		}
