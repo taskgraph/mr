@@ -10,7 +10,7 @@ import (
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/protobuf/proto"
 	pb "github.com/plutoshe/mr/proto"
-	"github.com/taskgraph/taskgraph"
+	"github.com/plutoshe/taskgraph"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )

@@ -1,6 +1,6 @@
 package mapreduce
 
-import "github.com/taskgraph/taskgraph"
+import "github.com/plutoshe/taskgraph"
 
 type MapreduceTaskBuilder struct {
 	NumOfTasks      uint64

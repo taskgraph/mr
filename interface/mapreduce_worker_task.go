@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	pb "../proto"
 	"github.com/coreos/go-etcd/etcd"
 	"github.com/golang/protobuf/proto"
-	"github.com/taskgraph/taskgraph"
+	pb "github.com/plutoshe/mr/proto"
+	"github.com/plutoshe/taskgraph"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 )
