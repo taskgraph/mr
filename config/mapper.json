@@ -1,6 +1,6 @@
 {
   "Type" : "Mapper",
-  "ETCDBIN" : "/usr/local/golib/etcd-v2.0.5-darwin-amd64",
+  "ETCDURL" : "http://localhost:4001",
   "AppName" : "mapperEx",
   
   "InputFiles" : ["eee.txt","eee.txt", "eee.txt", "eee.txt", "eee.txt"],

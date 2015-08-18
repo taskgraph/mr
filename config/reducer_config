@@ -2,7 +2,7 @@ Reducer Config:
 {
 	//Mapper application configuration 
 	"Type" : "Reducer", // indicate application type
-	"ETCDBIN" : "etcd executive file path"
+	"ETCDURL" : "etcd exposed ip address"
 	"AppName" : "appName", // give the name of mapper in etcd 
 
 	// Indicate filesystem type and details

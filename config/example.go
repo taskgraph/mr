@@ -12,10 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/plutoshe/mr/interface"
-	// "github.com/Azure/azure-sdk-for-go/storage"
-
 	"github.com/coreos/go-etcd/etcd"
+	mapreduce "github.com/plutoshe/mr/interface"
 	"github.com/plutoshe/taskgraph/controller"
 	"github.com/plutoshe/taskgraph/example/topo"
 	"github.com/plutoshe/taskgraph/filesystem"
@@ -32,7 +30,7 @@ type AzureFsConfiguration struct {
 
 type Configuration struct {
 	Type          string
-	ETCDBIN       string
+	ETCDURL       string
 	AppName       string
 	FSType        string
 	AzureConfig   AzureFsConfiguration
@@ -140,15 +138,17 @@ func reducerWorkInit() {
 
 }
 
-func clean() {
-	cmd := exec.Command(config.ETCDBIN+"/etcdctl", "rm", "--recursive", config.AppName+"/")
-	cmd.Run()
+func clean(client *etcd.Client) {
+	_, err := client.Delete(config.AppName, true)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func mapperTaskInit() {
-	etcdURLs := []string{"http://localhost:4001"}
+	etcdURLs := []string{config.ETCDURL}
 	if *phase == "i" {
-		clean()
+		clean(etcd.NewClient(etcdURLs))
 	}
 	fsInit()
 	mapperWorkInit()
@@ -165,9 +165,9 @@ func mapperTaskInit() {
 }
 
 func reducerTaskInit() {
-	etcdURLs := []string{"http://localhost:4001"}
+	etcdURLs := []string{config.ETCDURL}
 	if *phase == "i" {
-		clean()
+		clean(etcd.NewClient(etcdURLs))
 	}
 	fsInit()
 	reducerWorkInit()

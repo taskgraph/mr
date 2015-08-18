@@ -2,7 +2,7 @@ Mapper Config:
 {
 	//Mapper application configuration 
 	"Type" : "Mapper", // indicate application type
-	"ETCDBIN" : "etcd executive file path"
+	"ETCDURL" : "etcd exposed ip address"
 	"AppName" : "appName", // give the name of mapper in etcd 
 
 	"InputFile" : [a set of input file path], 

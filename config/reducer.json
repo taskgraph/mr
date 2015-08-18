@@ -1,6 +1,6 @@
 {
   "Type" : "Reducer",
-	"ETCDBIN" : "/usr/local/golib/etcd-v2.0.5-darwin-amd64",
+	"ETCDURL" : "http://localhost:4001",
   "AppName" : "reducerEx",
   
  	"FSType" : "Local",
