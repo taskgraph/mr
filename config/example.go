@@ -57,7 +57,7 @@ var (
 	finshedProgram chan struct{}
 	sourceConfig   = flag.String("source", "", "The configuration file")
 	logDir         = flag.String("logdir", "./logdir", "the output log file")
-	phase          = flag.String("phase", "", "The phase of application")
+	phase          = flag.String("phase", "i", "The phase of application")
 )
 
 func fsInit() {
@@ -312,7 +312,7 @@ func main() {
 	if *sourceConfig == "" {
 		log.Fatalf("Please specify a configuration file")
 	}
-	if *phase == "" {
+	if *phase != "c" && *phase != "i" && *phase != "t" {
 		log.Fatalf("Please specify a phase(i/c/t) \n i : a initialize phase, \n c : a conctorller pahse, \n t : an offspring pahse.")
 	}
 	file, _ := os.Open(*sourceConfig)
