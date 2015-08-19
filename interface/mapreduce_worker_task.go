@@ -188,7 +188,7 @@ func (t *workerTask) doEnterEpoch(ctx context.Context, epoch uint64) {
 	// start a new one
 	close(t.stopGrabTaskForEveryEpoch)
 	t.stopGrabTaskForEveryEpoch = make(chan bool, 1)
-	go t.grabWork(ctx, "/proto.Master/GetWork", t.stopGrabTaskForEveryEpoch)
+	go t.grabWork(ctx, "/mapreduce.Master/GetWork", t.stopGrabTaskForEveryEpoch)
 }
 
 func (t *workerTask) Exit() {
@@ -205,7 +205,7 @@ func (t *workerTask) CreateServer() *grpc.Server {
 
 func (t *workerTask) CreateOutputMessage(method string) proto.Message {
 	switch method {
-	case "/proto.Master/GetWork":
+	case "/mapreduce.Master/GetWork":
 		return new(pb.WorkConfigResponse)
 	}
 	panic("")

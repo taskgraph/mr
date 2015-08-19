@@ -242,7 +242,7 @@ func (t *masterTask) EnterEpoch(ctx context.Context, epoch uint64) {
 
 func (t *masterTask) CreateOutputMessage(method string) proto.Message {
 	switch method {
-	case "/proto.Master/GetWork":
+	case "/mapreduce.Master/GetWork":
 		return new(pb.WorkConfigResponse)
 	}
 	panic("")

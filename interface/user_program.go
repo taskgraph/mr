@@ -6,7 +6,7 @@ import (
 	"os/exec"
 	"strings"
 
-	pb "../proto"
+	pb "github.com/plutoshe/mr/proto"
 	"google.golang.org/grpc"
 )
 

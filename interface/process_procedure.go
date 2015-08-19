@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	pb "../proto"
+	pb "github.com/plutoshe/mr/proto"
 
 	"golang.org/x/net/context"
 )
