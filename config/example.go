@@ -139,10 +139,7 @@ func reducerWorkInit() {
 }
 
 func clean(client *etcd.Client) {
-	_, err := client.Delete(config.AppName, true)
-	if err != nil {
-		log.Fatal(err)
-	}
+	client.Delete(config.AppName, true)
 }
 
 func mapperTaskInit() {
