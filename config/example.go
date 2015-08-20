@@ -91,9 +91,9 @@ func mapperWorkInit() {
 		newWork.InputFilePath = []string{inputFile}
 		newWork.OutputFilePath = []string{config.TmpResultDir}
 		newWork.UserProgram = []string{
-			"wc docker stop mr" + strconv.Itoa(i),
-			"wc docker rm mr" + strconv.Itoa(i),
-			"ww docker run -d -p " +
+			"wc sudo docker stop mr" + strconv.Itoa(i),
+			"wc sudo docker rm mr" + strconv.Itoa(i),
+			"ww sudo docker run -d -p " +
 				strconv.Itoa(20000+i) +
 				":" +
 				config.DockerPort +
@@ -119,9 +119,9 @@ func reducerWorkInit() {
 		newWork.OutputFilePath = []string{config.OutputDir + "/reducerOutput" + strconv.FormatUint(i, 10)}
 
 		newWork.UserProgram = []string{
-			"wc docker stop mr" + strconv.FormatUint(i, 10),
-			"wc docker rm mr" + strconv.FormatUint(i, 10),
-			"ww docker run -d -p " +
+			"wc sudo docker stop mr" + strconv.FormatUint(i, 10),
+			"wc sudo docker rm mr" + strconv.FormatUint(i, 10),
+			"ww sudo docker run -d -p " +
 				strconv.FormatUint(i+20000, 10) +
 				":" +
 				config.DockerPort +
