@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package mapreduce;
+
+option java_multiple_files = true;
+option java_package = "mapreduce";
+option java_outer_classname = "MapreduceProto";
+
+
+message KvPair {
+  string key = 1;
+  string value = 2;
+}
+
+message KvsPair {
+  string key = 1;
+  repeated string value = 2;
+}
+
+service MapperStream {
+  rpc GetStreamEmitResult(stream MapperRequest) returns (stream MapperResponse) {}
+}
+
+
+message MapperRequest {
+  repeated KvPair arr = 1;
+}
+
+message MapperResponse {
+  repeated KvPair arr = 1;
+}
+
+service ReducerStream {
+  rpc GetStreamCollectResult(stream ReducerRequest) returns (stream ReducerResponse) {}
+}
+
+message ReducerRequest {
+  repeated KvsPair arr = 1;
+}
+
+message ReducerResponse {
+  repeated KvPair arr = 1;
+}
+
+service Master {
+  rpc GetWork(WorkRequest) returns (stream WorkConfigResponse) {}
+}
+
+message WorkRequest {
+  uint64 taskID = 1;
+}
+
+message WorkConfigResponse {
+  repeated string key = 1;
+  repeated string value = 2;
+}
+
+service Worker {
+}
